@@ -31,7 +31,7 @@ function xmldb_local_enrollment_tokens_upgrade($oldversion) {
         }
 
         // Enrolltokens savepoint reached
-        upgrade_plugin_savepoint(true, 2024102401, 'local', 'enrollment_tokens');
+        upgrade_plugin_savepoint(true, 2024111101, 'local', 'enrollment_tokens');
     }
 
     if ($oldversion < 2024111101) {
@@ -54,7 +54,7 @@ function xmldb_local_enrollment_tokens_upgrade($oldversion) {
         }
 
         // Enrolltokens savepoint reached
-        upgrade_plugin_savepoint(true, 2024102401, 'local', 'enrollment_tokens');
+        upgrade_plugin_savepoint(true, 2024111101, 'local', 'enrollment_tokens');
     }
 
     if ($oldversion < 2024111101) { // Update for group_account and created_by
@@ -80,7 +80,7 @@ function xmldb_local_enrollment_tokens_upgrade($oldversion) {
         $table->addKey(new xmldb_key('created_by_fk', XMLDB_KEY_FOREIGN, array('created_by'), 'user', array('id')));
 
         // Enrolltokens savepoint reached
-        upgrade_plugin_savepoint(true, 2024102401, 'local', 'enrollment_tokens');
+        upgrade_plugin_savepoint(true, 2024111101, 'local', 'enrollment_tokens');
     }
 
     return true;
