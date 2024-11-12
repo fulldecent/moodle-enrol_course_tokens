@@ -6,7 +6,7 @@ function xmldb_local_enrollment_tokens_upgrade($oldversion) {
 
     $dbman = $DB->get_manager();
 
-    if ($oldversion < 2024102201) {
+    if ($oldversion < 2024111101) {
         // Define table enrollment_tokens to be created
         $table = new xmldb_table('enrollment_tokens');
 
@@ -34,7 +34,7 @@ function xmldb_local_enrollment_tokens_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2024102401, 'local', 'enrollment_tokens');
     }
 
-    if ($oldversion < 2024102201) {
+    if ($oldversion < 2024111101) {
         $table = new xmldb_table('enrollment_tokens');
         
         // Adding fields if they don't exist
@@ -57,7 +57,7 @@ function xmldb_local_enrollment_tokens_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2024102401, 'local', 'enrollment_tokens');
     }
 
-    if ($oldversion < 2024102201) { // Update for group_account and created_by
+    if ($oldversion < 2024111101) { // Update for group_account and created_by
         $table = new xmldb_table('enrollment_tokens');
 
         // Adding new fields

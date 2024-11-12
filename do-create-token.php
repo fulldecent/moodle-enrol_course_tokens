@@ -10,6 +10,8 @@ $email = required_param('email', PARAM_EMAIL);
 $extra_json = optional_param('extra_json', '', PARAM_RAW);
 $quantity = required_param('quantity', PARAM_INT);
 $group_account = optional_param('group_account', '', PARAM_TEXT); // New field for Corporate Account
+$firstname = required_param('firstname', PARAM_TEXT); // First name from the form
+$lastname = required_param('lastname', PARAM_TEXT); // Last name from the form
 
 // Validate course ID
 $course = $DB->get_record('course', array('id' => $course_id));
@@ -36,14 +38,25 @@ if ($quantity < 1) {
 }
 
 // Check if the user exists or create a new user
-$user = $DB->get_record('user', array('email' => $email));
+$user = $DB->get_record('user', array('email' => $email, 'deleted' => 0, 'suspended' => 0));
 if (empty($user)) {
-    $user = new stdClass();
-    $user->email = $email;
-    $user->username = $email;
-    $user->firstname = 'NOT SET';
-    $user->lastname = 'NOT SET';
-    $user->id = $DB->insert_record('user', $user);
+    // Create new user if not found, using the first name and last name passed from the form
+    $new_user = new stdClass();
+    $new_user->auth = 'manual';
+    $new_user->confirmed = 1;
+    $new_user->mnethostid = $CFG->mnet_localhost_id; // Ensure mnethostid matches local host ID
+    $new_user->username = strtolower(explode('@', $email)[0]) . rand(1000, 9999); // Generate unique username
+    $new_user->password = hash_internal_user_password('changeme');
+    $new_user->email = $email;
+    $new_user->firstname = $firstname; // Use the firstname from the form
+    $new_user->lastname = $lastname;   // Use the lastname from the form
+    $new_user->timecreated = time();
+    $new_user->timemodified = time();
+    $new_user->forcepasswordchange = 1; // Force password change on first login
+
+    // Insert new user record
+    $new_user->id = $DB->insert_record('user', $new_user);
+    $user = $new_user;
 }
 
 // Get the current user's ID to store as 'created_by'

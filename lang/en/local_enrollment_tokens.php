@@ -14,6 +14,9 @@ $string['code'] = 'Token';
 $string['courseid'] = 'Course ID';
 $string['timecreated'] = 'Created at';
 $string['enrollment'] = 'Enrolment';
+$string['firstname'] = 'First name';
+$string['lastname'] = 'Last name';
+
 
 $string['activateintroduction'] = 'Activate a token to start your course.';
 
