@@ -140,6 +140,13 @@ echo '
 <script>
     function submitEnrollForm(tokenId) {
         var form = document.getElementById("enrollForm" + tokenId);
+        
+        // Check if form is valid before submitting
+        if (!form.checkValidity()) {
+            alert("Please fill out all required fields.");
+            return; // Do not submit if the form is invalid
+        }
+        
         var formData = new FormData(form);
 
         // Send the form data via AJAX
