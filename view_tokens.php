@@ -20,12 +20,14 @@ $sql = "SELECT t.*, u.email as enrolled_user_email
 
 $tokens = $DB->get_records_sql($sql, [$USER->id]);
 
+// Render the page header
 echo $OUTPUT->header();
 
+// Display page title
 echo html_writer::tag('h3', 'My course tokens', array('class' => 'mb-3'));
 
 if (!empty($tokens)) {
-    // Start a Bootstrap table
+    // Start a Bootstrap-styled table
     echo html_writer::start_tag('table', array('class' => 'table table-striped table-hover'));
     echo html_writer::start_tag('thead');
     echo html_writer::start_tag('tr');
@@ -45,27 +47,64 @@ if (!empty($tokens)) {
         $course = $DB->get_record('course', ['id' => $token->course_id], 'fullname');
         $course_name = $course ? $course->fullname : 'Unknown Course';
     
+        // Get the user ID based on the email from the token
+        $user = $DB->get_record('user', ['email' => $token->used_by], 'id');
+        $user_id = $user ? $user->id : null;
+
         // Determine token status
-        if (!empty($token->used_on)) {
-            $status = 'Used';
-            // Get the email saved in the used_by field
-            $used_by = !empty($token->used_by) ? $token->used_by : 'N/A';
-            // Format the used_on date without leading zeros in the month and day
-            $used_on = date('Y-n-j', $token->used_on);
+        if ($user_id) {
+            // Check if the user has viewed the course
+            $has_viewed_course = $DB->record_exists('logstore_standard_log', [
+                'eventname' => '\core\event\course_viewed',
+                'contextinstanceid' => $token->course_id,
+                'userid' => $user_id
+            ]);
+
+            // Fetch course completion details
+            $completion = $DB->get_record('course_completions', ['userid' => $user_id, 'course' => $token->course_id], 'timecompleted');
+
+            // Fetch the Exam for the course
+            $exam = $DB->get_record('quiz', ['course' => $token->course_id, 'name' => 'Exam'], 'id, grade');
+            $exam_grade = null;
+            if ($exam) {
+                // Fetch the user's grade for the Exam
+                $exam_grade = $DB->get_record('quiz_grades', ['quiz' => $exam->id, 'userid' => $user_id], 'grade');
+            }
+
+            if (!empty($completion) && !empty($completion->timecompleted) && $completion->timecompleted > 0) {
+                $status = 'Completed';
+                $status_class = 'bg-primary text-white';
+            } elseif ($exam_grade && $exam_grade->grade < 0.84 * $exam->grade) {
+                $status = 'Failed';
+                $status_class = 'bg-danger text-white';
+            } elseif ($has_viewed_course) {
+                $status = 'In Progress';
+                $status_class = 'bg-warning text-dark';
+            } else {
+                $status = 'Assigned';
+                $status_class = 'bg-success text-white';
+            }
+        } elseif (!empty($token->used_on)) {
+            $status = 'Assigned';
+            $status_class = 'bg-success text-white';
         } else {
             $status = 'Available';
-            $used_by = '-';
-            $used_on = '-';
+            $status_class = 'bg-secondary';
         }
-    
+
+        // Prepare "Used By" and "Used On" fields for display
+        $used_by = !empty($token->used_by) ? $token->used_by : '-';
+        $used_on = !empty($token->used_on) ? date('Y-n-j', $token->used_on) : '-';
+
+        // Render table row
         echo html_writer::start_tag('tr');
         echo html_writer::tag('td', format_string($token->code));
         echo html_writer::tag('td', format_string($course_name));
-        echo html_writer::tag('td', $status);
+        echo html_writer::tag('td', format_string($status), array('class' => $status_class)); // Apply Bootstrap class for status
         echo html_writer::tag('td', format_string($used_by));
         echo html_writer::tag('td', $used_on);
-    
-        // Show "Enroll Myself" button only for available tokens
+
+        // Show "Enroll Myself" and "Enroll Somebody Else" buttons for available tokens
         if ($status === 'Available') {
             $use_token_url = new moodle_url('/local/enrollment_tokens/use_token.php', ['token_code' => $token->code]);
             $use_button = html_writer::tag('a', 'Enroll Myself', array(
@@ -74,15 +113,15 @@ if (!empty($tokens)) {
             ));
             echo html_writer::tag('td', $use_button);
 
-            // Add "Enroll Somebody Else" button with a modal trigger
+            // Add "Enroll Somebody Else" button with modal trigger
             $share_button = html_writer::tag('button', 'Enroll Somebody Else', array(
                 'class' => 'btn btn-secondary',
                 'data-toggle' => 'modal',
-                'data-target' => '#enrollModal' . $token->id // Ensure the modal ID is unique for each token
+                'data-target' => '#enrollModal' . $token->id
             ));
             echo html_writer::tag('td', $share_button);
 
-            // Add the modal markup
+            // Render the modal
             echo '
             <div class="modal fade" id="enrollModal' . $token->id . '" tabindex="-1" role="dialog" aria-labelledby="enrollModalLabel" aria-hidden="true">
                 <div class="modal-dialog" role="document">
@@ -116,13 +155,12 @@ if (!empty($tokens)) {
                         </div>
                     </div>
                 </div>
-            </div>
-            ';
+            </div>';
         } else {
             echo html_writer::tag('td', '-');
             echo html_writer::tag('td', '-');
         }
-    
+
         echo html_writer::end_tag('tr');
     }
 
@@ -130,9 +168,11 @@ if (!empty($tokens)) {
     echo html_writer::end_tag('table');
 
 } else {
+    // No tokens available
     echo html_writer::tag('p', 'No tokens available.', array('class' => 'alert alert-info'));
 }
 
+// Render the page footer
 echo $OUTPUT->footer();
 
 // Add JavaScript to submit the form via AJAX
