@@ -1,4 +1,4 @@
-<XMLDB PATH="local/enrollment_tokens/db" VERSION="2024120301" COMMENT="XMLDB file for Moodle local/enrollment_tokens"
+<XMLDB PATH="local/enrollment_tokens/db" VERSION="2024120304" COMMENT="XMLDB file for Moodle local/enrollment_tokens"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd">
   <TABLES>
