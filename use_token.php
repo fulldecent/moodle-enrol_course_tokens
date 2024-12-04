@@ -6,7 +6,7 @@ global $DB, $USER, $PAGE, $OUTPUT;
 require_login();
 
 // Set the URL of the page
-$PAGE->set_url(new moodle_url('/local/enrollment_tokens/use_token.php'));
+$PAGE->set_url(new moodle_url('/enrol/course_tokens/use_token.php'));
 $PAGE->set_context(context_user::instance($USER->id));
 $PAGE->set_title('Use Token');
 $PAGE->set_heading('Use Token');
@@ -14,8 +14,8 @@ $PAGE->set_heading('Use Token');
 // Get the token code from URL parameter
 $token_code = required_param('token_code', PARAM_TEXT);
 
-// Use sql_compare_text() for text column comparisons
-$sql = "SELECT * FROM {enrollment_tokens} WHERE " . $DB->sql_compare_text('code') . " = ? AND user_id = ?";
+// Use sql_compare_text() for text column comparisons to ensure case-insensitive matching
+$sql = "SELECT * FROM {course_tokens} WHERE " . $DB->sql_compare_text('code') . " = ? AND user_id = ?";
 $params = [$token_code, $USER->id];
 
 // Check if the token exists and is associated with the current user
@@ -28,7 +28,7 @@ if (!$token) {
     exit();
 }
 
-// Check if the token is already used
+// Check if the token has already been used
 if (!empty($token->user_enrolments_id)) {
     echo $OUTPUT->header();
     echo $OUTPUT->notification('This token has already been used.', 'error');
@@ -36,7 +36,7 @@ if (!empty($token->user_enrolments_id)) {
     exit();
 }
 
-// Enroll in the course
+// Enroll the user in the course
 $course = $DB->get_record('course', ['id' => $token->course_id]);
 if (!$course) {
     echo $OUTPUT->header();
@@ -45,67 +45,73 @@ if (!$course) {
     exit();
 }
 
+// Set the context for the course
 $context = context_course::instance($course->id);
+
+// Get all enrolment instances for the course
 $enrolinstances = enrol_get_instances($course->id, true);
 $enrolinstance = null;
 foreach ($enrolinstances as $instance) {
-    if ($instance->enrol === 'manual') {
+    if ($instance->enrol === 'course_tokens') {
         $enrolinstance = $instance;
         break;
     }
 }
 
+// Check if the course supports the course_tokens enrolment method
 if (!$enrolinstance) {
     echo $OUTPUT->header();
-    echo $OUTPUT->notification('Manual enrollment method not enabled for this course.', 'error');
+    echo $OUTPUT->notification('Course token enrolment method not enabled for this course.', 'error');
     echo $OUTPUT->footer();
     exit();
 }
 
-// Get the form parameters
+// Get form parameters for user enrollment (email, first name, last name)
 $enrol_email = optional_param('email', null, PARAM_EMAIL);
 $first_name = optional_param('first_name', 'New', PARAM_TEXT);
 $last_name = optional_param('last_name', 'User', PARAM_TEXT);
 
-// If email is provided, handle user creation or lookup
+// If an email is provided, either lookup an existing user or create a new one
 if ($enrol_email) {
     $enrol_user = $DB->get_record('user', ['email' => $enrol_email, 'deleted' => 0, 'suspended' => 0]);
 
     if (!$enrol_user) {
-        // Create new user if not found
+        // Create a new user if none found with the provided email
         $new_user = new stdClass();
-        $new_user->auth = 'manual';
-        $new_user->confirmed = 1;
-        $new_user->mnethostid = $CFG->mnet_localhost_id;
-        $new_user->username = strtolower(explode('@', $enrol_email)[0]) . rand(1000, 9999);
-        $new_user->password = hash_internal_user_password('changeme');
+        $new_user->auth = 'manual'; // Authentication method set to 'manual' for simplicity
+        $new_user->confirmed = 1; // Confirm the user is active
+        $new_user->mnethostid = $CFG->mnet_localhost_id; // Moodle network ID
+        $new_user->username = strtolower(explode('@', $enrol_email)[0]) . rand(1000, 9999); // Generate a unique username
+        $new_user->password = hash_internal_user_password('changeme'); // Set a default password
         $new_user->email = $enrol_email;
         $new_user->firstname = $first_name;
         $new_user->lastname = $last_name;
-        $new_user->timecreated = time();
-        $new_user->timemodified = time();
+        $new_user->timecreated = time(); // Set creation time
+        $new_user->timemodified = time(); // Set modification time
 
+        // Insert the new user into the database
         $new_user->id = $DB->insert_record('user', $new_user);
         $enrol_user = $new_user;
     }
 } else {
-    $enrol_user = $USER; // Use the current logged-in user
+    // Use the currently logged-in user if no email is provided
+    $enrol_user = $USER;
 }
 
-// Enroll the user in the course
-$roleId = 5; // Role ID for student
-$enrolPlugin = enrol_get_plugin('manual');
-$enrolPlugin->enrol_user($enrolinstance, $enrol_user->id, $roleId); // Throws on error
+// Enroll the user into the course using the 'student' role
+$roleId = $DB->get_record('role', ['shortname' => 'student'])->id; // Get the student role ID
+$enrolPlugin = enrol_get_plugin('course_tokens'); // Get the course_tokens enrolment plugin
+$enrolPlugin->enrol_user($enrolinstance, $enrol_user->id, $roleId); // Enroll the user
 
-// Mark token as used and set the timestamp
+// Mark the token as used after successful enrolment
 $userEnrolment = $DB->get_record('user_enrolments', ['userid' => $enrol_user->id, 'enrolid' => $enrolinstance->id]);
 if ($userEnrolment) {
-    $token->user_enrolments_id = $userEnrolment->id;
-    $token->used_on = time(); // Set the current timestamp
-    $token->used_by = $enrol_email ?: $USER->email; // Save the email in the used_by field; if $enrol_email is null, use current user's email
-    $DB->update_record('enrollment_tokens', $token);
+    $token->user_enrolments_id = $userEnrolment->id; // Associate the user enrolment ID with the token
+    $token->used_on = time(); // Set the token usage time
+    $token->used_by = $enrol_email ?: $USER->email; // Record who used the token (email or current user)
+    $DB->update_record('course_tokens', $token); // Update the token record in the database
 }
 
 // Redirect to the course view page
-redirect(new moodle_url('/course/view.php', ['id' => $course->id]));   
+redirect(new moodle_url('/course/view.php', ['id' => $course->id]));
 ?>

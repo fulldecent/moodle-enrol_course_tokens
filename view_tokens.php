@@ -6,14 +6,14 @@ global $DB, $USER, $PAGE, $OUTPUT;
 require_login();
 
 // Set the URL of the page
-$PAGE->set_url(new moodle_url('/local/enrollment_tokens/view_tokens.php'));
+$PAGE->set_url(new moodle_url('/enrol/course_tokens/view_tokens.php'));
 $PAGE->set_context(context_user::instance($USER->id));
 $PAGE->set_title('My course tokens');
 $PAGE->set_heading('My course tokens');
 
 // Fetch tokens associated with the logged-in user
 $sql = "SELECT t.*, u.email as enrolled_user_email
-        FROM {enrollment_tokens} t
+        FROM {course_tokens} t
         LEFT JOIN {user_enrolments} ue ON t.user_enrolments_id = ue.id
         LEFT JOIN {user} u ON ue.userid = u.id
         WHERE t.user_id = ?";
@@ -106,7 +106,7 @@ if (!empty($tokens)) {
 
         // Show "Enroll Myself" and "Enroll Somebody Else" buttons for available tokens
         if ($status === 'Available') {
-            $use_token_url = new moodle_url('/local/enrollment_tokens/use_token.php', ['token_code' => $token->code]);
+            $use_token_url = new moodle_url('/enrol/course_tokens/use_token.php', ['token_code' => $token->code]);
             $use_button = html_writer::tag('a', 'Enroll Myself', array(
                 'href' => $use_token_url->out(),
                 'class' => 'btn btn-primary'

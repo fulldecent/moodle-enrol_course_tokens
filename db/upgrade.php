@@ -1,16 +1,16 @@
 <?php
 defined('MOODLE_INTERNAL') || die();
 
-function xmldb_local_enrollment_tokens_upgrade($oldversion) {
+function xmldb_enrol_course_tokens_upgrade($oldversion) {
     global $DB;
 
     $dbman = $DB->get_manager();
 
     if ($oldversion < 2024120304) {
-        // Define table enrollment_tokens to be created
-        $table = new xmldb_table('enrollment_tokens');
+        // Define table course_tokens to be created
+        $table = new xmldb_table('course_tokens');
 
-        // Adding fields to table enrollment_tokens
+        // Adding fields to table course_tokens
         $table->addField(new xmldb_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null));
         $table->addField(new xmldb_field('timecreated', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null));
         $table->addField(new xmldb_field('timemodified', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null));
@@ -31,11 +31,11 @@ function xmldb_local_enrollment_tokens_upgrade($oldversion) {
         }
 
         // Enrolltokens savepoint reached
-        upgrade_plugin_savepoint(true, 2024120304, 'local', 'enrollment_tokens');
+        upgrade_plugin_savepoint(true, 2024120304, 'enrol', 'course_tokens');
     }
 
     if ($oldversion < 2024120304) {
-        $table = new xmldb_table('enrollment_tokens');
+        $table = new xmldb_table('course_tokens');
         
         // Adding fields if they don't exist
         if (!$dbman->field_exists($table, 'user_id')) {
@@ -54,11 +54,11 @@ function xmldb_local_enrollment_tokens_upgrade($oldversion) {
         }
 
         // Enrolltokens savepoint reached
-        upgrade_plugin_savepoint(true, 2024120305, 'local', 'enrollment_tokens'); // This version needs to be one up.
+        upgrade_plugin_savepoint(true, 2024120305, 'enrol', 'course_tokens'); // This version needs to be one up.
     }
 
     if ($oldversion < 2024120304) { // Update for group_account and created_by
-        $table = new xmldb_table('enrollment_tokens');
+        $table = new xmldb_table('course_tokens');
 
         // Adding new fields
         if (!$dbman->field_exists($table, 'group_account')) {
@@ -80,7 +80,7 @@ function xmldb_local_enrollment_tokens_upgrade($oldversion) {
         $table->addKey(new xmldb_key('created_by_fk', XMLDB_KEY_FOREIGN, array('created_by'), 'user', array('id')));
 
         // Enrolltokens savepoint reached
-        upgrade_plugin_savepoint(true, 2024120304, 'local', 'enrollment_tokens');
+        upgrade_plugin_savepoint(true, 2024120304, 'enrol', 'course_tokens');
     }
 
     return true;

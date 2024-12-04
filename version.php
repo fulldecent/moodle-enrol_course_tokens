@@ -1,7 +1,7 @@
 <?php
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->component = 'local_enrollment_tokens';
+$plugin->component = 'enrol_course_tokens';
 $plugin->version   = 2024120304;  // Updated to the new version YYYYMMDDXX
 $plugin->requires  = 2020061500;  // Requires this Moodle version
 $plugin->maturity  = MATURITY_STABLE;
