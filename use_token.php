@@ -6,7 +6,7 @@ global $DB, $USER, $PAGE, $OUTPUT;
 require_login();
 
 // Set the URL of the page
-$PAGE->set_url(new moodle_url('/local/enrollment_tokens/use_token.php'));
+$PAGE->set_url(new moodle_url('/enrol/course_tokens/use_token.php'));
 $PAGE->set_context(context_user::instance($USER->id));
 $PAGE->set_title('Use Token');
 $PAGE->set_heading('Use Token');
@@ -15,7 +15,7 @@ $PAGE->set_heading('Use Token');
 $token_code = required_param('token_code', PARAM_TEXT);
 
 // Use sql_compare_text() for text column comparisons
-$sql = "SELECT * FROM {enrollment_tokens} WHERE " . $DB->sql_compare_text('code') . " = ? AND user_id = ?";
+$sql = "SELECT * FROM {course_tokens} WHERE " . $DB->sql_compare_text('code') . " = ? AND user_id = ?";
 $params = [$token_code, $USER->id];
 
 // Check if the token exists and is associated with the current user
@@ -103,7 +103,7 @@ if ($userEnrolment) {
     $token->user_enrolments_id = $userEnrolment->id;
     $token->used_on = time(); // Set the current timestamp
     $token->used_by = $enrol_email ?: $USER->email; // Save the email in the used_by field; if $enrol_email is null, use current user's email
-    $DB->update_record('enrollment_tokens', $token);
+    $DB->update_record('course_tokens', $token);
 }
 
 // Redirect to the course view page

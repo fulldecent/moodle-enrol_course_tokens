@@ -16,25 +16,25 @@ $lastname = required_param('lastname', PARAM_TEXT); // Last name from the form
 // Validate course ID
 $course = $DB->get_record('course', array('id' => $course_id));
 if (empty($course)) {
-    redirect(new moodle_url('/local/enrollment_tokens/index.php'), get_string('errorcourse', 'local_enrollment_tokens'), null, \core\output\notification::NOTIFY_ERROR);
+    redirect(new moodle_url('/enrol/course_tokens/index.php'), get_string('errorcourse', 'enrol_course_tokens'), null, \core\output\notification::NOTIFY_ERROR);
 }
 
 // Validate email
 if (!validate_email($email)) {
-    redirect(new moodle_url('/local/enrollment_tokens/index.php'), get_string('erroremail', 'local_enrollment_tokens'), null, \core\output\notification::NOTIFY_ERROR);
+    redirect(new moodle_url('/enrol/course_tokens/index.php'), get_string('erroremail', 'enrol_course_tokens'), null, \core\output\notification::NOTIFY_ERROR);
 }
 
 // Validate JSON
 if (!empty($extra_json)) {
     $extra_json = json_decode($extra_json);
     if (json_last_error() !== JSON_ERROR_NONE) {
-        redirect(new moodle_url('/local/enrollment_tokens/index.php'), get_string('errorjson', 'local_enrollment_tokens'), null, \core\output\notification::NOTIFY_ERROR);
+        redirect(new moodle_url('/enrol/course_tokens/index.php'), get_string('errorjson', 'enrol_course_tokens'), null, \core\output\notification::NOTIFY_ERROR);
     }
 }
 
 // Validate quantity
 if ($quantity < 1) {
-    redirect(new moodle_url('/local/enrollment_tokens/index.php'), get_string('errorquantity', 'local_enrollment_tokens'), null, \core\output\notification::NOTIFY_ERROR);
+    redirect(new moodle_url('/enrol/course_tokens/index.php'), get_string('errorquantity', 'enrol_course_tokens'), null, \core\output\notification::NOTIFY_ERROR);
 }
 
 // Check if the user exists or create a new user
@@ -82,7 +82,7 @@ for ($i = 0; $i < $quantity; $i++) {
     $token->created_by = $created_by; // Store the creator's user ID
 
     // Insert the token into the database
-    $DB->insert_record('enrollment_tokens', $token);
+    $DB->insert_record('course_tokens', $token);
 }
 
-redirect(new moodle_url('/local/enrollment_tokens/index.php'), get_string('tokenscreated', 'local_enrollment_tokens', $quantity), null, \core\output\notification::NOTIFY_SUCCESS);
+redirect(new moodle_url('/enrol/course_tokens/index.php'), get_string('tokenscreated', 'enrol_course_tokens', $quantity), null, \core\output\notification::NOTIFY_SUCCESS);

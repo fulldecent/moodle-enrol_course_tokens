@@ -7,14 +7,14 @@ global $DB, $USER, $PAGE, $OUTPUT;
 require_login();
 
 // Set the URL of the page and page properties
-$PAGE->set_url(new moodle_url('/local/enrollment_tokens/dashboard.php'));
+$PAGE->set_url(new moodle_url('/enrol/course_tokens/dashboard.php'));
 $PAGE->set_context(context_user::instance($USER->id));
 $PAGE->set_title('Token Dashboard');
 $PAGE->set_heading('Token Dashboard');
 
 // SQL query to fetch tokens associated with the logged-in user
 $sql = "SELECT t.*, u.email as enrolled_user_email
-        FROM {enrollment_tokens} t
+        FROM {course_tokens} t
         LEFT JOIN {user_enrolments} ue ON t.user_enrolments_id = ue.id
         LEFT JOIN {user} u ON ue.userid = u.id
         WHERE t.user_id = ?";
@@ -141,7 +141,7 @@ if (!empty($course_data)) {
 
         // Fetch available tokens for the specific course ID
         $sql = "SELECT t.code, c.fullname as course_name, t.course_id, t.id
-        FROM {enrollment_tokens} t
+        FROM {course_tokens} t
         JOIN {course} c ON t.course_id = c.id
         WHERE t.user_id = ? AND t.user_enrolments_id IS NULL AND t.course_id = ?"; // Filter by course ID
         $available_tokens = $DB->get_records_sql($sql, [$USER->id, $counts['course_id']]);
@@ -163,7 +163,7 @@ if (!empty($course_data)) {
                     </button>
                 </div>
                 <div class="modal-body">
-                    <form id="enrollForm' . $token->id . '" action="/local/enrollment_tokens/use_token.php" method="POST">
+                    <form id="enrollForm' . $token->id . '" action="/enrol/course_tokens/use_token.php" method="POST">
                         <div class="form-group">
                             <label for="firstName' . $token->id . '">First Name</label>
                             <input type="text" class="form-control" id="firstName' . $token->id . '" name="first_name" required>
@@ -202,7 +202,7 @@ if (!empty($course_data)) {
             var formData = new FormData(form);
 
             // Send the form data via AJAX
-            fetch("/local/enrollment_tokens/use_token.php", {
+            fetch("/enrol/course_tokens/use_token.php", {
                 method: "POST",
                 body: formData
             })

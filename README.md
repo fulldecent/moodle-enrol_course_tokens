@@ -25,30 +25,30 @@ Install using `git`. Other ways may be possible but only `git` is supported.
 Type this command in the root of your Moodle installation:
 
 ```sh
-git clone git://github.com/fulldecent/moodle-local_enrollment_tokens.git ./local/enrollment_tokens
+git clone git://github.com/fulldecent/moodle-enrol_course_tokens.git ./enrol/course_tokens
 ```
 
 You may add this to your `gitignore` or local `exclude` files, e.g.:
 
 ```
-echo '/local/enrollment_tokens' >> .git/info/exclude
+echo '/enrol/course_tokens' >> .git/info/exclude
 ```
 
 Log into your Moodle instance as *admin*: the installation process will start. Alternatively, visit the *Site administration > Notifications* page.
 
-After you have installed this local plugin, you'll need to configure it under *Site administration -> Plugins -> Local plugins -> Twitter card* in the *Settings* block.
+After you have installed this enrol plugin, you'll need to configure it under *Site administration -> Plugins -> Enrol plugins -> Twitter card* in the *Settings* block.
 
 ## Features / specification
 
 * [ ] All text is internationalized and new languages can be added
-* [ ] Site administrator can create tokens (/local/enrollment_tokens/)
+* [ ] Site administrator can create tokens (/enrol/course_tokens/)
   * [x] Admin will select a course, enter a quantity
   * [x] Can specify arbitrary JSON to connect with this enrollment (e.g. group assignment, email opt-out)
   * [x] The token code is created automatically
     * [x] From the course ID number like cprfaaed-f7df-7781
     * [x] It can't be guessed
   * [ ] Admin can directly assign to a (new) student when creating token
-* [ ] Activate page (/local/assign.php)
+* [ ] Activate page (/enrol/assign.php)
   * [ ] Buttons allow to add or remove tokens and do a bunch at a time (TODO: need to document development process, JavaScript is complicated with Moodle plugin development)
   * [ ] Token IDs validate before they are used
 

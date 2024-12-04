@@ -4,34 +4,40 @@ require_login();
 require_capability('moodle/site:config', context_system::instance());
 
 $PAGE->set_context(context_system::instance());
-$PAGE->set_url(new moodle_url('/local/enrollment_tokens/index.php'));
-$PAGE->set_title(get_string('pluginname', 'local_enrollment_tokens'));
-$PAGE->set_heading(get_string('pluginname', 'local_enrollment_tokens'));
+$PAGE->set_url(new moodle_url('/enrol/course_tokens/index.php'));
+$PAGE->set_title(get_string('pluginname', 'enrol_course_tokens'));
+$PAGE->set_heading(get_string('pluginname', 'enrol_course_tokens'));
 
 // Load from databases
-$tokens = $DB->get_records('enrollment_tokens');
-$courses = $DB->get_records_select_menu('course', '', null, '', 'id, fullname');
+$tokens = $DB->get_records('course_tokens');
+$sql = "
+    SELECT c.id, c.fullname
+    FROM {course} c
+    JOIN {enrol} e ON e.courseid = c.id
+    WHERE e.enrol = 'course_tokens'
+";
+$courses = $DB->get_records_sql_menu($sql, []);
 
 // Start output
 echo $OUTPUT->header();
-echo '<p>' . s(get_string('introduction', 'local_enrollment_tokens')) . '</p>';
+echo '<p>' . s(get_string('introduction', 'enrol_course_tokens')) . '</p>';
 
 // UI to create a token
-echo '<h2 class="my-3">' . s(get_string('createtokens', 'local_enrollment_tokens')) . '</h2>';
+echo '<h2 class="my-3">' . s(get_string('createtokens', 'enrol_course_tokens')) . '</h2>';
 echo '<form id="createTokenForm" action="do-create-token.php" method="post">';
 echo '<div class="form-item row mb-3">';
 // Select a course
 echo '<div class="form-label col-sm-3 text-sm-right">';
-echo '<label for="course_id">' . s(get_string('coursename', 'local_enrollment_tokens')) . '</label>';
+echo '<label for="course_id">' . s(get_string('coursename', 'enrol_course_tokens')) . '</label>';
 echo '</div>';
 echo '<div class="form-setting col-sm-9">';
-echo html_writer::select($courses, 'course_id', '', get_string('coursename', 'local_enrollment_tokens'));
+echo html_writer::select($courses, 'course_id', '', get_string('coursename', 'enrol_course_tokens'));
 echo '</div>';
 echo '</div>';
 // Email
 echo '<div class="form-item row mb-3">';
 echo '<div class="form-label col-sm-3 text-sm-right">';
-echo '<label for="email">' . s(get_string('email', 'local_enrollment_tokens')) . '</label>';
+echo '<label for="email">' . s(get_string('email', 'enrol_course_tokens')) . '</label>';
 echo '</div>';
 echo '<div class="form-setting col-sm-9">';
 echo '<input type="email" class="form-control" id="email" name="email" required>';
@@ -41,7 +47,7 @@ echo '</div>';
 // First Name
 echo '<div class="form-item row mb-3">';
 echo '<div class="form-label col-sm-3 text-sm-right">';
-echo '<label for="firstname">' . s(get_string('firstname', 'local_enrollment_tokens')) . '</label>';
+echo '<label for="firstname">' . s(get_string('firstname', 'enrol_course_tokens')) . '</label>';
 echo '</div>';
 echo '<div class="form-setting col-sm-9">';
 echo '<input type="text" class="form-control" id="firstname" name="firstname" required>';
@@ -50,7 +56,7 @@ echo '</div>';
 // Last Name
 echo '<div class="form-item row mb-3">';
 echo '<div class="form-label col-sm-3 text-sm-right">';
-echo '<label for="lastname">' . s(get_string('lastname', 'local_enrollment_tokens')) . '</label>';
+echo '<label for="lastname">' . s(get_string('lastname', 'enrol_course_tokens')) . '</label>';
 echo '</div>';
 echo '<div class="form-setting col-sm-9">';
 echo '<input type="text" class="form-control" id="lastname" name="lastname" required>';
@@ -59,7 +65,7 @@ echo '</div>';
 // Corporate Account (optional)
 echo '<div class="form-item row mb-3">';
 echo '<div class="form-label col-sm-3 text-sm-right">';
-echo '<label for="group_account">' . s(get_string('corporateaccount', 'local_enrollment_tokens')) . '</label>';
+echo '<label for="group_account">' . s(get_string('corporateaccount', 'enrol_course_tokens')) . '</label>';
 echo '</div>';
 echo '<div class="form-setting col-sm-9">';
 echo '<input type="text" class="form-control" id="group_account" name="group_account">';
@@ -68,7 +74,7 @@ echo '</div>';
 // Extra JSON
 echo '<div class="form-item row mb-3">';
 echo '<div class="form-label col-sm-3 text-sm-right">';
-echo '<label for="extra_json">' . s(get_string('extrajson', 'local_enrollment_tokens')) . '</label>';
+echo '<label for="extra_json">' . s(get_string('extrajson', 'enrol_course_tokens')) . '</label>';
 echo '</div>';
 echo '<div class="form-setting col-sm-9">';
 echo '<textarea class="form-control" id="extra_json" name="extra_json"></textarea>';
@@ -77,7 +83,7 @@ echo '</div>';
 // Quantity
 echo '<div class="form-item row mb-3">';
 echo '<div class="form-label col-sm-3 text-sm-right">';
-echo '<label for="quantity">' . s(get_string('quantity', 'local_enrollment_tokens')) . '</label>';
+echo '<label for="quantity">' . s(get_string('quantity', 'enrol_course_tokens')) . '</label>';
 echo '</div>';
 echo '<div class="form-setting col-sm-9">';
 echo '<input type="number" class="form-control" id="quantity" name="quantity" min="1" required>';
@@ -87,7 +93,7 @@ echo '</div>';
 echo '<div class="form-item row mb-3">';
 echo '<div class="form-label col-sm-3 text-sm-right"></div>';
 echo '<div class="form-setting col-sm-9">';
-echo '<input type="submit" class="btn btn-primary" value="' . s(get_string('createtokens', 'local_enrollment_tokens')) . '">';
+echo '<input type="submit" class="btn btn-primary" value="' . s(get_string('createtokens', 'enrol_course_tokens')) . '">';
 echo '</div>';
 echo '</div>';
 // CSRF token
@@ -95,17 +101,17 @@ echo '<input type="hidden" name="sesskey" value="' . sesskey() . '"/>';
 echo '</form>';
 
 // Show existing tokens
-echo '<h2 class="my-3">' . s(get_string('existingtokens', 'local_enrollment_tokens')) . '</h2>';
+echo '<h2 class="my-3">' . s(get_string('existingtokens', 'enrol_course_tokens')) . '</h2>';
 echo '<table class="table">';
 echo '<tr>';
-echo '  <th>' . s(get_string('token', 'local_enrollment_tokens')) . '</th>';
-echo '  <th>' . s(get_string('course', 'local_enrollment_tokens')) . '</th>';
-echo '  <th>' . s(get_string('createdby', 'local_enrollment_tokens')) . '</th>';
-echo '  <th>' . s(get_string('createdat', 'local_enrollment_tokens')) . '</th>';
-echo '  <th>' . s(get_string('purchaser', 'local_enrollment_tokens')) . '</th>';
-echo '  <th>' . s(get_string('corporateaccount', 'local_enrollment_tokens')) . '</th>';
-echo '  <th>' . s(get_string('usedby', 'local_enrollment_tokens')) . '</th>';
-echo '  <th>' . s(get_string('usedat', 'local_enrollment_tokens')) . '</th>';
+echo '  <th>' . s(get_string('token', 'enrol_course_tokens')) . '</th>';
+echo '  <th>' . s(get_string('course', 'enrol_course_tokens')) . '</th>';
+echo '  <th>' . s(get_string('createdby', 'enrol_course_tokens')) . '</th>';
+echo '  <th>' . s(get_string('createdat', 'enrol_course_tokens')) . '</th>';
+echo '  <th>' . s(get_string('purchaser', 'enrol_course_tokens')) . '</th>';
+echo '  <th>' . s(get_string('corporateaccount', 'enrol_course_tokens')) . '</th>';
+echo '  <th>' . s(get_string('usedby', 'enrol_course_tokens')) . '</th>';
+echo '  <th>' . s(get_string('usedat', 'enrol_course_tokens')) . '</th>';
 echo '</tr>';
 foreach ($tokens as $token) {
     echo '<tr>';
