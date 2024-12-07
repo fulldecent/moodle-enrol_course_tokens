@@ -155,7 +155,7 @@ if ($userEnrolment) {
     $DB->update_record('course_tokens', $token); // Update the token record in the database
 }
 
-if ($enrol_user == $USER) {
+if ($enrol_user->email === $USER->email) {
     // Redirect to the course page
     $redirectUrl = new moodle_url('/course/view.php', ['id' => $course->id]);
     redirect($redirectUrl, 'You have been successfully enrolled in the course.', null, \core\output\notification::NOTIFY_SUCCESS);
