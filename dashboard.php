@@ -190,8 +190,8 @@ if (!empty($course_data)) {
         // Add JavaScript to submit the form via AJAX
         echo '
         <script>
-        function submitEnrollForm(tokenId) {
-            var form = document.getElementById("enrollForm" + tokenId);
+        const submitEnrollForm = (tokenId) => {
+            const form = document.getElementById(`enrollForm${tokenId}`);
             
             // Check if form is valid before submitting
             if (!form.checkValidity()) {
@@ -199,31 +199,38 @@ if (!empty($course_data)) {
                 return; // Do not submit if the form is invalid
             }
             
-            var formData = new FormData(form);
+            const formData = new FormData(form);
 
             // Send the form data via AJAX
             fetch("/enrol/course_tokens/use_token.php", {
                 method: "POST",
                 body: formData
             })
-            .then(response => response.text())
+            .then(response => {
+                // Ensure we have a successful HTTP status before processing the JSON
+                if (!response.ok) {
+                    throw new Error("Network response was not ok");
+                }
+                return response.json(); // Parse the JSON response
+            })
             .then(data => {
-                // Display success or error message, or handle redirect
-                alert("Enrollment successful");
-                location.reload(); // Reload page to reflect changes
+                // Check if the response status is success
+                if (data.status === "success") {
+                    alert("Enrollment successful");
+                    location.reload(); // Reload page to reflect changes
+                } else {
+                    // Handle error message from the server
+                    alert(data.message || "An error occurred during enrollment.");
+                    location.reload(); // Reload page after error alert
+                }
             })
             .catch(error => {
                 console.error("Error:", error);
                 alert("An error occurred while processing the enrollment.");
+                location.reload(); // Reload page after error alert
             });
-        }
+        };
         </script>';
-        } else {
-        // If no available token is found for the course, show a message
-        echo '
-        <div class="alert alert-warning" role="alert">
-        No available token for this course.
-        </div>';
         }
     }
 

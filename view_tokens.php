@@ -178,33 +178,40 @@ echo $OUTPUT->footer();
 // Add JavaScript to submit the form via AJAX
 echo '
 <script>
-    function submitEnrollForm(tokenId) {
-        var form = document.getElementById("enrollForm" + tokenId);
-        
-        // Check if form is valid before submitting
-        if (!form.checkValidity()) {
-            alert("Please fill out all required fields.");
-            return; // Do not submit if the form is invalid
-        }
-        
-        var formData = new FormData(form);
-
-        // Send the form data via AJAX
-        fetch("' . $use_token_url->out(false) . '", {
-            method: "POST",
-            body: formData
-        })
-        .then(response => response.text())
-        .then(data => {
-            // Display success or error message, or handle redirect
-            alert("Enrollment successful");
-            location.reload();
-        })
-        .catch(error => {
-            console.error("Error:", error);
-            alert("An error occurred while processing the enrollment.");
-        });
+    const submitEnrollForm = (tokenId) => {
+    const form = document.getElementById(`enrollForm${tokenId}`);
+    
+    // Check if form is valid before submitting
+    if (!form.checkValidity()) {
+        alert("Please fill out all required fields.");
+        return; // Do not submit if the form is invalid
     }
+    
+    const formData = new FormData(form);
+
+    // Send the form data via AJAX
+    fetch("' . $use_token_url->out(false) . '", {
+        method: "POST",
+        body: formData
+    })
+    .then(response => response.json()) // Parse JSON response
+    .then(data => {
+        // Check if the response status is success
+        if (data.status === "success") {
+            alert("Enrollment successful");
+            location.reload(); // Reload page to reflect changes
+        } else {
+            // Handle error message from the server
+            alert(data.message || "An error occurred during enrollment.");
+            location.reload(); // Reload page after error alert
+        }
+    })
+    .catch(error => {
+        console.error("Error:", error);
+        alert("An error occurred while processing the enrollment.");
+        location.reload(); // Reload page after error alert
+    });
+};
 </script>
 ';
 ?>
