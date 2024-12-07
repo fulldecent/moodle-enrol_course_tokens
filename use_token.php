@@ -155,10 +155,16 @@ if ($userEnrolment) {
     $DB->update_record('course_tokens', $token); // Update the token record in the database
 }
 
-// Return a success response in JSON format
-echo json_encode([
-    'status' => 'success',
-    'message' => 'User successfully enrolled in the course.'
-]);
-exit();
-?>
+if ($enrol_user == $USER) {
+    // Redirect to the course page
+    $redirectUrl = new moodle_url('/course/view.php', ['id' => $course->id]);
+    redirect($redirectUrl, 'You have been successfully enrolled in the course.', null, \core\output\notification::NOTIFY_SUCCESS);
+} else {
+    // Return a success response in JSON format
+    echo json_encode([
+        'status' => 'success',
+        'message' => 'User successfully enrolled in the course.'
+    ]);
+    exit();
+}
+?> 
