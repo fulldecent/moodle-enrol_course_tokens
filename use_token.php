@@ -68,6 +68,26 @@ if (!$enrolinstance) {
 
 // Get form parameters for user enrollment (email, first name, last name)
 $enrol_email = optional_param('email', null, PARAM_EMAIL);
+
+// Check if the provided email address is already enrolled in the course
+if ($enrol_email) {
+    $enrolled_user = $DB->get_record_sql(
+        "SELECT ue.id 
+         FROM {user_enrolments} ue
+         JOIN {enrol} e ON ue.enrolid = e.id
+         WHERE e.courseid = ? AND ue.userid = (SELECT id FROM {user} WHERE email = ? AND deleted = 0 AND suspended = 0)",
+        [$course->id, $enrol_email]
+    );
+
+    if ($enrolled_user) {
+        // Return the error instead of displaying it
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'This user was previously already enrolled in this course. This token is not being spent.'
+        ]);
+        exit();
+    }
+}
 $first_name = optional_param('first_name', 'New', PARAM_TEXT);
 $last_name = optional_param('last_name', 'User', PARAM_TEXT);
 
@@ -96,6 +116,29 @@ if ($enrol_email) {
 } else {
     // Use the currently logged-in user if no email is provided
     $enrol_user = $USER;
+    // Check if the currently logged-in user is already enrolled in the course
+    $enrolled_user = $DB->get_record_sql(
+        "SELECT ue.id 
+        FROM {user_enrolments} ue
+        JOIN {enrol} e ON ue.enrolid = e.id
+        WHERE e.courseid = ? AND ue.userid = ?",
+        [$course->id, $enrol_user->id]
+    );
+
+    if ($enrolled_user) {
+        // Output the header (optional, if you need to include it for the page structure)
+        echo $OUTPUT->header();
+
+        // Use JavaScript for alert and redirection
+        echo '<script type="text/javascript">
+            alert("You are already enrolled in this course. This token is not being spent.");
+            window.location.href = "/enrol/course_tokens/view_tokens.php";
+        </script>';
+
+        // Output the footer (optional, if you need to include it for the page structure)
+        echo $OUTPUT->footer();
+        exit();
+    }
 }
 
 // Enroll the user into the course using the 'student' role
@@ -112,6 +155,10 @@ if ($userEnrolment) {
     $DB->update_record('course_tokens', $token); // Update the token record in the database
 }
 
-// Redirect to the course view page
-redirect(new moodle_url('/course/view.php', ['id' => $course->id]));
+// Return a success response in JSON format
+echo json_encode([
+    'status' => 'success',
+    'message' => 'User successfully enrolled in the course.'
+]);
+exit();
 ?>
