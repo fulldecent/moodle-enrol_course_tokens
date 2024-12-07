@@ -108,7 +108,7 @@ if ($enrol_email) {
         $new_user->lastname = $last_name;
         $new_user->timecreated = time(); // Set creation time
         $new_user->timemodified = time(); // Set modification time
-
+    
         // Insert the new user into the database
         $new_user->id = $DB->insert_record('user', $new_user);
         $enrol_user = $new_user;
@@ -155,6 +155,46 @@ if ($userEnrolment) {
     $DB->update_record('course_tokens', $token); // Update the token record in the database
 }
 
+// Send the appropriate email based on whether the user is new or existing
+$subject = "Welcome to the {$course->fullname} Course";
+if (isset($new_user)) {
+    // New user email with username and default password
+    $message = "
+        Dear {$new_user->firstname} {$new_user->lastname},
+
+        Thank you for purchasing the {$course->fullname} course.
+        Please log in to your student workroom at this link: https://learn.pacificmedicaltraining.com/login/
+
+        Your username is {$new_user->username} and your default password is \"changeme\". You will be asked to change your password on the first login. Once completed, please go to the \"My Course\" tab, and you will see your digital purchase - {$course->fullname}.
+
+        Thank you.
+    ";
+} else {
+    // Existing user email
+    $message = "
+        Dear {$enrol_user->firstname} {$enrol_user->lastname},
+
+        Welcome back! You have been successfully enrolled in the {$course->fullname} course.
+        Please visit your student workroom at: https://learn.pacificmedicaltraining.com/login/
+        
+        We are excited to have you in the course.
+
+        Thank you.
+    ";
+}
+
+// Create a custom 'from' user object for the sender
+$from_user = new stdClass();
+$from_user->email = 'support@pacificmedicaltraining.com'; // Set the sender's email address
+$from_user->firstname = 'PMT';
+$from_user->lastname = 'instructor';
+$from_user->maildisplay = 1; // Optional: Ensure the email address is visible
+
+// Send the email
+if (!email_to_user($enrol_user, $from_user, $subject, $message)) {
+    debugging("Failed to send email to user {$enrol_user->email}");
+}
+
 if ($enrol_user->email === $USER->email) {
     // Redirect to the course page
     $redirectUrl = new moodle_url('/course/view.php', ['id' => $course->id]);
@@ -167,4 +207,4 @@ if ($enrol_user->email === $USER->email) {
     ]);
     exit();
 }
-?> 
+?>
