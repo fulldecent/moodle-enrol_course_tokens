@@ -85,4 +85,48 @@ for ($i = 0; $i < $quantity; $i++) {
     $DB->insert_record('course_tokens', $token);
 }
 
-redirect(new moodle_url('/enrol/course_tokens/index.php'), get_string('tokenscreated', 'enrol_course_tokens', $quantity), null, \core\output\notification::NOTIFY_SUCCESS);
+// Determine the correct token wording
+$token_word = $quantity === 1 ? 'token' : 'tokens';
+
+// Prepare email details
+$token_url = "https://learn.pacificmedicaltraining.com/enrol/course_tokens/dashboard.php";
+
+// Email content for new users
+if ($user->id == $new_user->id) { // Check if the user is the newly created user
+    $message = "
+        Dear {$new_user->firstname} {$new_user->lastname},
+
+        Welcome to Pacific Medical Training. Your account has been created with the username \"{$new_user->username}\" and password \"changeme\". 
+        You will be prompted to change the password on the first login.
+        You have received {$quantity} {$token_word} for the course {$course->fullname}. 
+        You can view your tokens at: {$token_url}.
+        
+        Thank you.
+    ";
+} else {
+    // Email content for existing users
+    $message = "
+        Dear {$user->firstname} {$user->lastname},
+
+        You have received {$quantity} {$token_word} for the course {$course->fullname}. 
+        You can view your tokens at: {$token_url}.
+        
+        Thank you.
+    ";
+}
+
+// Prepare email subject
+$subject = "Your Course Tokens from Pacific Medical Training";
+
+// Explicitly set the sender details
+$sender = new stdClass();
+$sender->firstname = "PMT";
+$sender->lastname = "instructor";
+$sender->email = $USER->email; // Use the current user's email as the "from" email
+
+// Send the email
+email_to_user($user, $sender, $subject, $message);
+
+// Redirect with success message
+redirect(new moodle_url('/enrol/course_tokens/'), get_string('tokenscreated', 'enrol_course_tokens', $quantity), null, \core\output\notification::NOTIFY_SUCCESS);
+?>
