@@ -38,6 +38,23 @@ Log into your Moodle instance as *admin*: the installation process will start. A
 
 After you have installed this enrol plugin, you'll need to configure it under *Site administration -> Plugins -> Enrol plugins -> Twitter card* in the *Settings* block.
 
+## Dashboard Block
+
+**Purpose**
+A dashboard block provides users with a summary of token statuses and allows them to manage their available tokens.
+
+**Features**
+
+- Displays token counts (e.g., available, assigned, in progress, completed, failed) for each course.
+- Allows users to assign tokens directly from their inventory.
+
+**Usage**
+
+To enable the block:
+1. Create a symlink for the block: `ln -s ../enrol/course_tokens/block/ course_tokens`
+2. Add the block to the dashboard, or any desired location.
+
+
 ## Features / specification
 
 * [ ] All text is internationalized and new languages can be added
