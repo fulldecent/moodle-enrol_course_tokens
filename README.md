@@ -1,18 +1,8 @@
-# TODO BEFORE FIRST RELEASE
+# STATUS
 
-- [ ] on assign.php allow to do mulitple tokens at once
-  - [ ] plus and minus tokens on javascript
-- [ ] on assign.php validate and recommend fixes for email address // see PMT code for gamil.com
-- [ ] Add testing for the case where you enroll a student and then they expire and re-enroll again
-  - [ ] it must reset progress
+This plugin is used in a preproduction installation.
 
-- [ ] \- Will reset the enrolment if the user is already enrolled but not active (this feature is not configurable)
-
-  \- Note: there is some thing called "front page" which everyone is enrolled in by default so it gets weird if you make a token for that
-  
-- [ ] Add many screenshots here
-
-- [ ] Promote plugin at page like https://moodle.org/plugins/block_coupon
+Remaining issues before public 1.0.0 release are in [Issue #49](https://github.com/fulldecent/moodle-enrol_course_tokens/issues/49).
 
 ## What is it?
 
