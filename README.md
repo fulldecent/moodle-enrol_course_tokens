@@ -54,7 +54,6 @@ To enable the block:
 1. Create a symlink for the block: `ln -s ../enrol/course_tokens/block/ course_tokens`
 2. Add the block to the dashboard, or any desired location.
 
-
 ## Features / specification
 
 * [ ] All text is internationalized and new languages can be added
