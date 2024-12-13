@@ -114,7 +114,7 @@ class block_course_tokens extends block_base
         $this->content->text .= html_writer::tag('th', 'Course');
         $this->content->text .= html_writer::tag('th', 'Available inventory');
         $this->content->text .= html_writer::tag('th', 'Assigned');
-        $this->content->text .= html_writer::tag('th', 'In progress');
+        $this->content->text .= html_writer::tag('th', 'In-progress');
         $this->content->text .= html_writer::tag('th', 'Completed');
         $this->content->text .= html_writer::tag('th', 'Failed');
         $this->content->text .= html_writer::end_tag('tr');
@@ -130,7 +130,7 @@ class block_course_tokens extends block_base
             // Available Inventory with an Assign Button
             if ($counts['available'] > 0) {
                 $assign_button = html_writer::tag('button', 'Assign', [
-                    'class' => 'btn btn-success ml-2',
+                    'class' => 'btn btn-success ml-2 btn-sm',
                     'data-toggle' => 'modal',
                     'data-target' => '#assignModal' . $counts['course_id']
                 ]);
