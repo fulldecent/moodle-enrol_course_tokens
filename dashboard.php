@@ -9,8 +9,8 @@ require_login();
 // Set the URL of the page and page properties
 $PAGE->set_url(new moodle_url('/enrol/course_tokens/dashboard.php'));
 $PAGE->set_context(context_user::instance($USER->id));
-$PAGE->set_title('Token Dashboard');
-$PAGE->set_heading('Token Dashboard');
+$PAGE->set_title('Course tokens dashboard');
+$PAGE->set_heading('Course tokens dashboard');
 
 // SQL query to fetch tokens associated with the logged-in user
 $sql = "SELECT t.*, u.email as enrolled_user_email
@@ -100,9 +100,9 @@ if (!empty($course_data)) {
     echo html_writer::start_tag('thead');
     echo html_writer::start_tag('tr');
     echo html_writer::tag('th', 'Course');
-    echo html_writer::tag('th', 'Available Inventory');
+    echo html_writer::tag('th', 'Available inventory');
     echo html_writer::tag('th', 'Assigned');
-    echo html_writer::tag('th', 'In Progress');
+    echo html_writer::tag('th', 'In-progress');
     echo html_writer::tag('th', 'Completed');
     echo html_writer::tag('th', 'Failed');
     echo html_writer::end_tag('tr');
@@ -118,7 +118,7 @@ if (!empty($course_data)) {
         $assign_button = '';
         if ($counts['available'] > 0) {
             $assign_button = html_writer::tag('button', 'Assign', [
-                'class' => 'btn btn-success',
+                'class' => 'btn btn-success btn-sm',
                 'data-toggle' => 'modal',
                 'data-target' => '#assignModal' . $counts['course_id']
             ]);
@@ -237,6 +237,10 @@ if (!empty($course_data)) {
     // Close the table tags
     echo html_writer::end_tag('tbody');
     echo html_writer::end_tag('table');
+    // Add link to view individual tokens
+    echo html_writer::tag('a', 'View individual tokens', [
+        'href' => '/enrol/course_tokens/view_tokens.php',
+    ]);
 } else {
     // Display a message if there is no course data available
     echo html_writer::tag('div', 'No tokens available for this user.', array('class' => 'alert alert-warning'));
