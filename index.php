@@ -77,7 +77,7 @@ echo '<div class="form-label col-sm-3 text-sm-right">';
 echo '<label for="extra_json">' . s(get_string('extrajson', 'enrol_course_tokens')) . '</label>';
 echo '</div>';
 echo '<div class="form-setting col-sm-9">';
-echo '<textarea class="form-control" id="extra_json" name="extra_json"></textarea>';
+echo '<textarea class="form-control" id="extra_json" name="extra_json" placeholder="Enter the order number here like \'1004\'"></textarea>';
 echo '</div>';
 echo '</div>';
 // Quantity
@@ -109,6 +109,7 @@ echo '  <th>' . s(get_string('course', 'enrol_course_tokens')) . '</th>';
 echo '  <th>' . s(get_string('createdby', 'enrol_course_tokens')) . '</th>';
 echo '  <th>' . s(get_string('createdat', 'enrol_course_tokens')) . '</th>';
 echo '  <th>' . s(get_string('purchaser', 'enrol_course_tokens')) . '</th>';
+echo '<th>' . s(get_string('extrajson', 'enrol_course_tokens')) . '</th>';
 echo '  <th>' . s(get_string('corporateaccount', 'enrol_course_tokens')) . '</th>';
 echo '  <th>' . s(get_string('usedby', 'enrol_course_tokens')) . '</th>';
 echo '  <th>' . s(get_string('usedat', 'enrol_course_tokens')) . '</th>';
@@ -131,6 +132,10 @@ foreach ($tokens as $token) {
     $purchaser_email = $DB->get_field('user', 'email', array('id' => $token->user_id));
     echo '<td>' . s($purchaser_email) . '</td>';
 
+    // Display Extra JSON (formatted or raw)
+    $extra_json = !empty($token->extra_json) ? s($token->extra_json) : '-';
+    echo '<td><pre>' . $extra_json . '</pre></td>';
+
     // Display the Corporate Account if available
     $group_account = !empty($token->group_account) ? s($token->group_account) : '-';
     echo '<td>' . $group_account . '</td>';
@@ -141,13 +146,11 @@ foreach ($tokens as $token) {
         $enrollment = $DB->get_record('user_enrolments', array('id' => $token->user_enrolments_id));
         $used_by_user = $DB->get_record('user', array('id' => $enrollment->userid), 'email');
         $used_by = $used_by_user ? s($used_by_user->email) : 'none';
-        // Format "Used at" in ISO date format
         $used_at = date('Y-m-d', $token->used_on);
     } else {
         $used_by = '-';
         $used_at = '-';
     }
-
     echo '<td>' . s($used_by) . '</td>';
     echo '<td>' . s($used_at) . '</td>';
     echo '</tr>';
