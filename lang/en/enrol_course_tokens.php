@@ -4,7 +4,7 @@ $string['pluginname'] = 'Course tokens';
 $string['introduction'] = 'This plugin lets you make single-use codes for courses. Then anybody can use these tokens to create an account on your Moodle instance (if they don\'t already have one) and enroll in the course.';
 
 # Admin page
-$string['createtokens'] = 'Create tokens';
+$string['createtokens'] = 'Create Tokens';
 $string['coursename'] = 'Course';
 $string['extrajson'] = 'Extra JSON';
 $string['quantity'] = 'Quantity';

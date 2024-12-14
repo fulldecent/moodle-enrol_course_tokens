@@ -8,8 +8,8 @@ $PAGE->set_url(new moodle_url('/enrol/course_tokens/index.php'));
 $PAGE->set_title(get_string('pluginname', 'enrol_course_tokens'));
 $PAGE->set_heading(get_string('pluginname', 'enrol_course_tokens'));
 
-// Load from databases
-$tokens = $DB->get_records('course_tokens');
+// Load from databases, order tokens by creation time (newer first)
+$tokens = $DB->get_records('course_tokens', null, 'timecreated DESC');
 $sql = "
     SELECT c.id, c.fullname
     FROM {course} c
