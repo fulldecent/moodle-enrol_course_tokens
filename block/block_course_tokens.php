@@ -106,17 +106,17 @@ class block_course_tokens extends block_base
         ['class' => 'alert alert-info']
         );
         // Output the data in the block
-        $this->content->text .= html_writer::start_tag('table', array('class' => 'table table-striped table-hover'));
+        $this->content->text .= html_writer::start_tag('table', array('class' => 'table table-striped table-hover table-bordered'));
 
         // Table headers
         $this->content->text .= html_writer::start_tag('thead');
         $this->content->text .= html_writer::start_tag('tr');
-        $this->content->text .= html_writer::tag('th', 'Course');
-        $this->content->text .= html_writer::tag('th', 'Available inventory');
-        $this->content->text .= html_writer::tag('th', 'Assigned');
-        $this->content->text .= html_writer::tag('th', 'In-progress');
-        $this->content->text .= html_writer::tag('th', 'Completed');
-        $this->content->text .= html_writer::tag('th', 'Failed');
+        $this->content->text .= html_writer::tag('th', 'Course',['class' => 'text-center col-2']);
+        $this->content->text .= html_writer::tag('th', 'Available inventory',['class' => 'text-center col-2']);
+        $this->content->text .= html_writer::tag('th', 'Assigned',['class' => 'text-center col-2']);
+        $this->content->text .= html_writer::tag('th', 'In-progress',['class' => 'text-center col-2']);
+        $this->content->text .= html_writer::tag('th', 'Completed',['class' => 'text-center col-2']);
+        $this->content->text .= html_writer::tag('th', 'Failed',['class' => 'text-center col-2']);
         $this->content->text .= html_writer::end_tag('tr');
         $this->content->text .= html_writer::end_tag('thead');
 
@@ -125,7 +125,7 @@ class block_course_tokens extends block_base
         // Loop through course data and display counts
         foreach ($course_data as $course_name => $counts) {
             $this->content->text .= html_writer::start_tag('tr');
-            $this->content->text .= html_writer::tag('td', format_string($course_name));
+            $this->content->text .= html_writer::tag('td', format_string($course_name), ['class' => 'text-center col-2']);
 
             // Available Inventory with an Assign Button
             if ($counts['available'] > 0) {
@@ -137,26 +137,26 @@ class block_course_tokens extends block_base
             } else {
                 $assign_button = '';
             }
-            $this->content->text .= html_writer::tag('td', $counts['available'] . $assign_button);
+            $this->content->text .= html_writer::tag('td', $counts['available'] . $assign_button, ['class' => 'text-center col-2']);
 
             // Assigned column with bg-success and text-white
             $this->content->text .= html_writer::tag('td', $counts['assigned'], [
-                'class' => 'bg-success text-white text-center font-weight-bold'
+                'class' => 'bg-success text-white text-center font-weight-bold col-2'
             ]);
 
             // In Progress column with bg-warning and text-white
             $this->content->text .= html_writer::tag('td', $counts['in_progress'], [
-                'class' => 'bg-warning text-white text-center font-weight-bold'
+                'class' => 'bg-warning text-white text-center font-weight-bold col-2'
             ]);
 
             // Completed column with bg-primary and text-white
             $this->content->text .= html_writer::tag('td', $counts['completed'], [
-                'class' => 'bg-primary text-white text-center font-weight-bold'
+                'class' => 'bg-primary text-white text-center font-weight-bold col-2'
             ]);
 
             // Failed column with bg-danger and text-white
             $this->content->text .= html_writer::tag('td', $counts['failed'], [
-                'class' => 'bg-danger text-white text-center font-weight-bold'
+                'class' => 'bg-danger text-white text-center font-weight-bold col-2'
             ]);
 
             $this->content->text .= html_writer::end_tag('tr');
