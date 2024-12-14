@@ -96,15 +96,15 @@ echo html_writer::tag(
 // Display the data in a table if course data is available
 if (!empty($course_data)) {
     // Start a Bootstrap-styled table
-    echo html_writer::start_tag('table', array('class' => 'table table-striped table-hover'));
+    echo html_writer::start_tag('table', array('class' => 'table table-striped table-hover table-bordered'));
     echo html_writer::start_tag('thead');
     echo html_writer::start_tag('tr');
-    echo html_writer::tag('th', 'Course');
-    echo html_writer::tag('th', 'Available inventory');
-    echo html_writer::tag('th', 'Assigned');
-    echo html_writer::tag('th', 'In-progress');
-    echo html_writer::tag('th', 'Completed');
-    echo html_writer::tag('th', 'Failed');
+    echo html_writer::tag('th', 'Course', ['class' => 'col-2 text-center']);
+    echo html_writer::tag('th', 'Available inventory', ['class' => 'col-2 text-center']);
+    echo html_writer::tag('th', 'Assigned', ['class' => 'col-2 text-center']);
+    echo html_writer::tag('th', 'In-progress', ['class' => 'col-2 text-center']);
+    echo html_writer::tag('th', 'Completed', ['class' => 'col-2 text-center']);
+    echo html_writer::tag('th', 'Failed', ['class' => 'col-2 text-center']);
     echo html_writer::end_tag('tr');
     echo html_writer::end_tag('thead');
     echo html_writer::start_tag('tbody');
@@ -112,31 +112,24 @@ if (!empty($course_data)) {
     // Loop through each course and display its status
     foreach ($course_data as $course_name => $counts) {
         echo html_writer::start_tag('tr');
-        echo html_writer::tag('td', format_string($course_name));
+        echo html_writer::tag('td', format_string($course_name), ['class' => 'text-center col-2']);
 
         // Available Inventory with an Assign Button
         $assign_button = '';
         if ($counts['available'] > 0) {
             $assign_button = html_writer::tag('button', 'Assign', [
-                'class' => 'btn btn-success btn-sm',
+                'class' => 'btn btn-success',
                 'data-toggle' => 'modal',
                 'data-target' => '#assignModal' . $counts['course_id']
             ]);
         }
-        echo html_writer::tag('td', $counts['available'] . ' ' . $assign_button);
+        echo html_writer::tag('td', $counts['available'] . ' ' . $assign_button, ['class' => 'text-center col-2']);
 
         // Display other course status counts
-        // Assigned (Green background with white text)
-        echo html_writer::tag('td', $counts['assigned'], ['class' => 'bg-success text-white text-center font-weight-bold']);
-
-        // In Progress (Yellow background with white text)
-        echo html_writer::tag('td', $counts['in_progress'], ['class' => 'bg-warning text-white text-center font-weight-bold']);
-
-        // Completed (Blue background with white text)
-        echo html_writer::tag('td', $counts['completed'], ['class' => 'bg-primary text-white text-center font-weight-bold']);
-
-        // Failed (Red background with white text)
-        echo html_writer::tag('td', $counts['failed'], ['class' => 'bg-danger text-white text-center font-weight-bold']);
+        echo html_writer::tag('td', $counts['assigned'], ['class' => 'bg-success text-white text-center font-weight-bold col-2']);
+        echo html_writer::tag('td', $counts['in_progress'], ['class' => 'bg-warning text-white text-center font-weight-bold col-2']);
+        echo html_writer::tag('td', $counts['completed'], ['class' => 'bg-primary text-white text-center font-weight-bold col-2']);
+        echo html_writer::tag('td', $counts['failed'], ['class' => 'bg-danger text-white text-center font-weight-bold col-2']);
         echo html_writer::end_tag('tr');
 
         // Fetch available tokens for the specific course ID
