@@ -10,23 +10,40 @@ This plugin lets you make single-use tokens for courses. Then anybody can use th
 
 ## Installation
 
-Install using `git`. Other ways may be possible but only `git` is supported.
+This plugin can be installed using either `git` or Moodle's built-in plugin installation method. Follow the instructions below for your preferred method.
 
-Type this command in the root of your Moodle installation:
+### Install via Git (Recommended)
 
-```sh
-git clone git://github.com/fulldecent/moodle-enrol_course_tokens.git ./enrol/course_tokens
-```
+1. Navigate to the root of your Moodle installation.
+2. Run the following command:
 
-You may add this to your `gitignore` or local `exclude` files, e.g.:
+   ```sh
+   git clone git://github.com/fulldecent/moodle-enrol_course_tokens.git ./enrol/course_tokens
+   ```
 
-```
-echo '/enrol/course_tokens' >> .git/info/exclude
-```
+3. Optionally, add this to your `.gitignore` or local `exclude` files to prevent accidental changes:
 
-Log into your Moodle instance as *admin*: the installation process will start. Alternatively, visit the *Site administration > Notifications* page.
+   ```sh
+   echo '/enrol/course_tokens' >> .git/info/exclude
+   ```
 
-After you have installed this enrol plugin, you'll need to configure it under *Site administration -> Plugins -> Enrol plugins -> Twitter card* in the *Settings* block.
+4. Log in to your Moodle instance as *admin*. The installation process will start automatically. Alternatively, visit the *Site administration > Notifications* page to trigger the installation manually.
+
+### Install via Moodle Plugin Installer
+
+1. Download the plugin zip file from the [GitHub repository](https://github.com/fulldecent/moodle-enrol_course_tokens).
+2. Log in to your Moodle site as *admin*.
+3. Navigate to *Site administration > Plugins > Install plugins*.
+4. Upload the downloaded zip file and follow the on-screen instructions.
+
+### Post-Installation Configuration
+
+After installation, configure the plugin:
+
+1. Go to *Site administration > Plugins > Enrol plugins > Course Tokens*.
+2. Enable the plugin to add it to the available enrolment methods.
+
+Your plugin is now ready to use.
 
 ## Dashboard Block
 
@@ -47,14 +64,44 @@ To enable the block:
 ## Features / specification
 
 * [ ] All text is internationalized and new languages can be added
-* [ ] Site administrator can create tokens (/enrol/course_tokens/)
-  * [x] Admin will select a course, enter a quantity
+* [x] Site administrator can create tokens (/enrol/course_tokens/)
+  * [x] The admin will select a course (after adding course tokens as an enrollment method) and select the desired quantity.
   * [x] Can specify arbitrary JSON to connect with this enrollment (e.g. group assignment, email opt-out)
   * [x] The token code is created automatically
     * [x] From the course ID number like cprfaaed-f7df-7781
     * [x] It can't be guessed
-  * [ ] Admin can directly assign to a (new) student when creating token
-* [ ] Activate page (/enrol/assign.php)
+  * [x] Admin will assign the token directly to a new student during the token creation process.
+* [ ] Activation Options
+    *   This plugin provides three options to activate or use tokens for course enrollment.
+    * View Tokens Page Path: `/enrol/course_tokens/view_tokens.php`
+        - Click on the **"Assign"** button.
+        - Provide the following details:
+            - First name
+            - Last name
+            - Email address
+    * Dashboard Block Path: `/my/`
+        - Click on the **"Assign"** button in the dashboard block.
+        - Provide the following details:
+            - First name
+            - Last name
+            - Email address
+    * Student Self-Enrollment Path: `/enrol/course_tokens/view_tokens.php`
+        - Students can choose one of the following options:
+            - **"Enroll Myself"**  
+        - Enroll directly into the course using their account.
+            - **"Enroll Somebody Else"**  
+            - Provide the following details of the person to enroll:
+                - First name
+                - Last name
+                - Email 
+**Note:**
+
+If the provided email does not belong to an existing user, an account will be created automatically. The user will receive:
+  - An email with their username and password.
+  - A welcome email upon enrollment.
+
+If the provided email belongs to an existing user, only the welcome email will be sent.
+
   * [ ] Buttons allow to add or remove tokens and do a bunch at a time (TODO: need to document development process, JavaScript is complicated with Moodle plugin development)
   * [ ] Token IDs validate before they are used
 
