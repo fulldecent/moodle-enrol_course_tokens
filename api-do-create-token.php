@@ -96,6 +96,33 @@ if (empty($user)) {
 
     $new_user->id = $DB->insert_record('user', $new_user);
     $user = $new_user;
+
+    // Prepare email details for new users
+    $message1 = "
+    Dear {$user->firstname} {$user->lastname},
+
+    Your new account has been created at Pacific Medical Training. 
+    Here are your login details:
+
+    Username: {$user->username}
+    Password: changeme  (You will be prompted to change this on first login)
+
+    Please login at https://learn.pacificmedicaltraining.com/login/index.php.
+
+    Thank you.
+    ";
+
+    // Prepare email subject
+    $subject = "Your new account from Pacific Medical Training";
+
+    // Explicitly set the sender details
+    $sender = new stdClass();
+    $sender->firstname = "PMT";
+    $sender->lastname = "Instructor";
+    $sender->email = $USER->email; // Use the current user's email as the "from" email
+
+    // Send the email
+    email_to_user($user, $sender, $subject, $message1);
 }
 
 // Get the current user's ID to store as 'created_by'
@@ -122,6 +149,33 @@ for ($i = 0; $i < $quantity; $i++) {
     $token->id = $DB->insert_record('course_tokens', $token);
     $tokens[] = $token->code;
 }
+
+// Determine the correct token wording
+$token_word = $quantity === 1 ? 'token' : 'tokens';
+
+// Prepare email details for token creation
+$token_url = "https://learn.pacificmedicaltraining.com/my/";
+
+$message2 = "
+    Dear {$user->firstname} {$user->lastname},
+
+    You have received {$quantity} {$token_word} for the course {$course->fullname}. 
+    You can view your tokens at: {$token_url}.
+    
+    Thank you.
+";
+
+// Prepare email subject
+$subject = "Your course {$token_word} from Pacific Medical Training";
+
+// Explicitly set the sender details
+$sender = new stdClass();
+$sender->firstname = "PMT";
+$sender->lastname = "Instructor";
+$sender->email = $USER->email; // Use the current user's email as the "from" email
+
+// Send the email
+email_to_user($user, $sender, $subject, $message2);
 
 // Return success response
 http_response_code(200);
