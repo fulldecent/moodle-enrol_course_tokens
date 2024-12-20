@@ -24,12 +24,15 @@ if (json_last_error() !== JSON_ERROR_NONE) {
     exit;
 }
 
-// MD5 hash of the password "createToken"
-$valid_password_hash = 'dd4b21e9ef71e1291183a46b913ae6f2'; 
+// Retrieve secret key from Moodle's configuration
+$valid_secret_key = get_config('course_tokens', 'secretkey');
+$provided_secret_key = isset($data['secret_key']) ? $data['secret_key'] : null;
+$secret_key_match = ($valid_secret_key === $provided_secret_key);
 
-if (!isset($data['password']) || $data['password'] !== $valid_password_hash) {
+// Check if secret keys match
+if (empty($valid_secret_key) || !isset($data['secret_key']) || $data['secret_key'] !== $valid_secret_key) {
     http_response_code(401); // Unauthorized
-    echo json_encode(['error' => 'Unauthorized access. Invalid password.']);
+    echo json_encode(['error' => 'Unauthorized access. Invalid secret key.']);
     exit;
 }
 

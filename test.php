@@ -8,8 +8,8 @@
 <body>
     <h1>Test API: Create Tokens</h1>
     <form id="apiTestForm">
-        <label for="password">Password:</label>
-        <input type="text" id="password" name="password" value="dd4b21e9ef71e1291183a46b913ae6f2" required><br><br>
+        <label for="secret_key">Secret Key:</label>
+        <input type="text" id="secret_key" name="secret_key" value="376b0c79b6781af60e54310a1b262286" required><br><br>
         
         <label for="course_id">Course ID:</label>
         <input type="number" id="course_id" name="course_id" value="5" required><br><br>
@@ -40,11 +40,11 @@
 
     <script>
         async function sendPayload() {
-            const url = "api-do-create-token.php"; // Update the URL
+            const url = "api-do-create-token.php"; // Ensure the URL is correct for your server
             
             // Prepare JSON payload from form inputs
             const payload = {
-                password: document.getElementById('password').value,
+                secret_key: document.getElementById('secret_key').value, // Get secret key from input
                 course_id: parseInt(document.getElementById('course_id').value),
                 email: document.getElementById('email').value,
                 quantity: parseInt(document.getElementById('quantity').value),
