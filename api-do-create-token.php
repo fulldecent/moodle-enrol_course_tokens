@@ -147,7 +147,7 @@ for ($i = 0; $i < $quantity; $i++) {
     $token->voided = '';
     $token->user_enrolments_id = null;
     $token->group_account = $group_account;
-    $token->created_by = $created_by;
+    $token->created_by = 364; // id of Robot user.
 
     $token->id = $DB->insert_record('course_tokens', $token);
     $tokens[] = $token->code;
