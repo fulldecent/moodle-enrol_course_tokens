@@ -24,9 +24,6 @@ $tokens = $DB->get_records_sql($sql, [$USER->id]);
 // Render the page header
 echo $OUTPUT->header();
 
-// Display page title
-echo html_writer::tag('h3', 'My course tokens', array('class' => 'mb-3'));
-
 if (!empty($tokens)) {
     // Start a Bootstrap-styled table
     echo html_writer::start_tag('table', array('class' => 'table table-striped table-hover'));

@@ -150,7 +150,7 @@ if (!empty($course_data)) {
         <div class="modal-dialog" role="document">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title" id="assignModalLabel' . $counts['course_id'] . '">Use Token</h5>
+                    <h5 class="modal-title" id="assignModalLabel' . $counts['course_id'] . '">Use token</h5>
                     <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                         <span aria-hidden="true">&times;</span>
                     </button>
@@ -158,15 +158,15 @@ if (!empty($course_data)) {
                 <div class="modal-body">
                     <form id="enrollForm' . $token->id . '" action="/enrol/course_tokens/use_token.php" method="POST">
                         <div class="form-group">
-                            <label for="firstName' . $token->id . '">First Name</label>
+                            <label for="firstName' . $token->id . '">First name</label>
                             <input type="text" class="form-control" id="firstName' . $token->id . '" name="first_name" required>
                         </div>
                         <div class="form-group">
-                            <label for="lastName' . $token->id . '">Last Name</label>
+                            <label for="lastName' . $token->id . '">Last name</label>
                             <input type="text" class="form-control" id="lastName' . $token->id . '" name="last_name" required>
                         </div>
                         <div class="form-group">
-                            <label for="emailAddress' . $token->id . '">Email Address</label>
+                            <label for="emailAddress' . $token->id . '">Email address</label>
                             <input type="email" class="form-control" id="emailAddress' . $token->id . '" name="email" required>
                         </div>
                         <div class="form-group">
@@ -174,14 +174,14 @@ if (!empty($course_data)) {
                             <input type="text" class="form-control" id="address<?php echo $token->id; ?>" name="address" required>
                         </div>
                         <div class="form-group">
-                            <label for="phone<?php echo $token->id; ?>">Phone Number</label>
+                            <label for="phone<?php echo $token->id; ?>">Phone number</label>
                             <input type="tel" class="form-control" id="phone<?php echo $token->id; ?>" name="phone_number" required>
                         </div>
                         <input type="hidden" name="token_code" value="' . $token->code . '">
                     </form>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-success" onclick="submitEnrollForm(' . $token->id . ')">Use Token for ' . $token->course_name . '</button>
+                    <button type="button" class="btn btn-success" onclick="submitEnrollForm(' . $token->id . ')">Use Token for ' . ucwords(strtolower($token->course_name)) . '</button>
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
                 </div>
             </div>

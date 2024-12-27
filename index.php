@@ -22,8 +22,6 @@ $courses = $DB->get_records_sql_menu($sql, []);
 echo $OUTPUT->header();
 echo '<p>' . s(get_string('introduction', 'enrol_course_tokens')) . '</p>';
 
-// UI to create a token
-echo '<h2 class="my-3">' . s(get_string('createtokens', 'enrol_course_tokens')) . '</h2>';
 echo '<form id="createTokenForm" action="do-create-token.php" method="post">';
 echo '<div class="form-item row mb-3">';
 // Select a course
