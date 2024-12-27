@@ -34,8 +34,8 @@ if (!empty($tokens)) {
     echo html_writer::tag('th', 'Status');
     echo html_writer::tag('th', 'Used by');
     echo html_writer::tag('th', 'Used on');
-    echo html_writer::tag('th', 'Enroll Myself');
-    echo html_writer::tag('th', 'Enroll Somebody Else');
+    echo html_writer::tag('th', 'Enroll myself');
+    echo html_writer::tag('th', 'Enroll somebody else');
     echo html_writer::end_tag('tr');
     echo html_writer::end_tag('thead');
     echo html_writer::start_tag('tbody');
@@ -76,7 +76,7 @@ if (!empty($tokens)) {
                 $status = 'Failed';
                 $status_class = 'bg-danger text-white';
             } elseif ($has_viewed_course) {
-                $status = 'In Progress';
+                $status = 'In-progress';
                 $status_class = 'bg-warning text-dark';
             } else {
                 $status = 'Assigned';
@@ -133,16 +133,24 @@ if (!empty($tokens)) {
                         <div class="modal-body">
                             <form id="enrollForm' . $token->id . '">
                                 <div class="form-group">
-                                    <label for="firstName">First Name</label>
+                                    <label for="firstName">First name</label>
                                     <input type="text" class="form-control" id="firstName' . $token->id . '" name="first_name" required>
                                 </div>
                                 <div class="form-group">
-                                    <label for="lastName">Last Name</label>
+                                    <label for="lastName">Last name</label>
                                     <input type="text" class="form-control" id="lastName' . $token->id . '" name="last_name" required>
                                 </div>
                                 <div class="form-group">
-                                    <label for="emailAddress">Email Address</label>
+                                    <label for="emailAddress">Email address</label>
                                     <input type="email" class="form-control" id="emailAddress' . $token->id . '" name="email" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="address<?php echo $token->id; ?>">Address</label>
+                                    <input type="text" class="form-control" id="address<?php echo $token->id; ?>" name="address" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="phone<?php echo $token->id; ?>">Phone number</label>
+                                    <input type="tel" class="form-control" id="phone<?php echo $token->id; ?>" name="phone_number" required>
                                 </div>
                                 <input type="hidden" name="token_code" value="' . $token->code . '">
                             </form>
