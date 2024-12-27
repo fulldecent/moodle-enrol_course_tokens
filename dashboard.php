@@ -169,6 +169,14 @@ if (!empty($course_data)) {
                             <label for="emailAddress' . $token->id . '">Email Address</label>
                             <input type="email" class="form-control" id="emailAddress' . $token->id . '" name="email" required>
                         </div>
+                        <div class="form-group">
+                            <label for="address<?php echo $token->id; ?>">Address</label>
+                            <input type="text" class="form-control" id="address<?php echo $token->id; ?>" name="address" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="phone<?php echo $token->id; ?>">Phone Number</label>
+                            <input type="tel" class="form-control" id="phone<?php echo $token->id; ?>" name="phone_number" required>
+                        </div>
                         <input type="hidden" name="token_code" value="' . $token->code . '">
                     </form>
                 </div>

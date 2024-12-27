@@ -155,6 +155,27 @@ if ($userEnrolment) {
     $DB->update_record('course_tokens', $token); // Update the token record in the database
 }
 
+// Get phone number and address from the POST request
+$phone_number = required_param('phone_number', PARAM_TEXT);
+$address = required_param('address', PARAM_TEXT);
+
+// Check if phone number or address is provided
+if ($phone_number || $address) {
+    // Prepare data for update
+    $data = new stdClass();
+    $data->id = $enrol_user->id; // User ID from the logged-in session
+
+    if ($phone_number) {
+        $data->phone1 = $phone_number;
+    }
+    if ($address) {
+        $data->address = $address;
+    }
+
+    // Update the user's record in the mdl_user table
+    $DB->update_record('user', $data);
+}
+
 // Send the appropriate email based on whether the user is new or existing
 $subject = "Welcome to the {$course->fullname} Course";
 if (isset($new_user)) {
