@@ -99,7 +99,46 @@ if (!empty($tokens)) {
         echo html_writer::tag('td', format_string($token->code));
         echo html_writer::tag('td', format_string($course_name));
         echo html_writer::tag('td', format_string($status), array('class' => $status_class)); // Apply Bootstrap class for status
-        echo html_writer::tag('td', format_string($used_by));
+        // Add "Used By" details if the token has been used with phone number and address
+        if ($user_id) {
+            // Fetch user's phone number and address
+            $user_details = $DB->get_record('user', ['id' => $user_id], 'phone1, address');
+            $phone = !empty($user_details->phone1) ? $user_details->phone1 : 'N/A';
+            $address = !empty($user_details->address) ? $user_details->address : 'N/A';
+        
+            // Render the clickable "Used by" text
+            $modal_trigger = html_writer::tag('a', format_string($used_by), [
+                'href' => '#',
+                'data-toggle' => 'modal',
+                'data-target' => '#userModal' . $user_id,
+            ]);
+        
+            echo html_writer::tag('td', $modal_trigger);
+        
+            // Add the modal HTML
+            echo '
+            <div class="modal fade" id="userModal' . $user_id . '" tabindex="-1" role="dialog" aria-labelledby="userModalLabel' . $user_id . '" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="userModalLabel' . $user_id . '">User Details</h5>
+                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <p><strong>Phone Number:</strong> ' . format_string($phone) . '</p>
+                            <p><strong>Address:</strong> ' . format_string($address) . '</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        </div>
+                    </div>
+                </div>
+            </div>';
+        } else {
+            echo html_writer::tag('td', '-');
+        }
         echo html_writer::tag('td', $used_on);
 
         // Show "Enroll Myself" and "Enroll Somebody Else" buttons for available tokens
