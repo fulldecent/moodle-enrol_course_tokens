@@ -34,6 +34,44 @@ Course tokens can be generated securely via an API, which requires a valid secre
 1. `extra_json`: JSON object (Additional data related to the token creation. Stored as a JSON string.)
 2. `group_account`: string (Specifies the group or corporate account associated with the token.)
 
+**cURL example ith optional parameters (`group_account` and `extra_json`):**
+
+```bash
+curl 'https://learn.pacificmedicaltraining.com/enrol/course_tokens/api-do-create-token.php' \
+  --header "Content-Type: application/json" \
+  --data-raw '{
+    "secret_key": "secret_key",
+    "course_id": 5,
+    "email": "minicurl@example.com",
+    "quantity": 1,
+    "firstname": "John",
+    "lastname": "Doe",
+    "group_account": "Corporate Inc",
+    "extra_json": {
+      "department": "Sales",
+      "reference_code": "ABC123",
+      "notes": "Priority client"
+    }
+  }'
+```
+
+**cURL example without the optional parameters (i.e., `group_account` and `extra_json`):**
+
+```bash
+curl 'https://learn.pacificmedicaltraining.com/enrol/course_tokens/api-do-create-token.php' \
+  --header "Content-Type: application/json" \
+  --data-raw '{
+    "secret_key": "secret_key",
+    "course_id": 5,
+    "email": "minicurl@example.com",
+    "quantity": 1,
+    "firstname": "John",
+    "lastname": "Doe",
+    "group_account": "",
+    "extra_json": null
+  }'
+```
+
 ### How to generate a secret key
 
 Follow these steps to generate a secure secret_key for your plugin:
