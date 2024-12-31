@@ -7,16 +7,16 @@
         <FIELD NAME="id" TYPE="int" LENGTH="10" NOTNULL="true" SEQUENCE="true"/>
         <FIELD NAME="timecreated" TYPE="int" LENGTH="10" NOTNULL="true"/>
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
-        <FIELD NAME="code" TYPE="char" LENGTH="50" NOTNULL="true"/> <!-- Updated to use char instead of text -->
+        <FIELD NAME="code" TYPE="char" LENGTH="50" NOTNULL="true"/>
         <FIELD NAME="course_id" TYPE="int" LENGTH="10" NOTNULL="true"/>
         <FIELD NAME="voided" TYPE="binary" LENGTH="1" NOTNULL="true"/> 
         <FIELD NAME="user_enrolments_id" TYPE="int" LENGTH="10" NOTNULL="false"/>
         <FIELD NAME="extra_json" TYPE="text" NOTNULL="false"/>
         <FIELD NAME="user_id" TYPE="int" LENGTH="10" NOTNULL="false"/>
         <FIELD NAME="used_on" TYPE="int" LENGTH="10" NOTNULL="false"/>
-        <FIELD NAME="group_account" TYPE="char" LENGTH="255" NOTNULL="false"/> <!-- Updated to use char instead of varchar -->
+        <FIELD NAME="group_account" TYPE="char" LENGTH="255" NOTNULL="false"/>
         <FIELD NAME="created_by" TYPE="int" LENGTH="10" NOTNULL="false"/> 
-        <FIELD NAME="used_by" TYPE="char" LENGTH="255" NOTNULL="false"/> <!-- Updated to use char instead of varchar -->
+        <FIELD NAME="used_by" TYPE="char" LENGTH="255" NOTNULL="false"/>
       </FIELDS>
       <KEYS>
         <KEY NAME="primary" TYPE="primary" FIELDS="id"/>
