@@ -9,7 +9,7 @@ $course_id = required_param('course_id', PARAM_INT);
 $email = required_param('email', PARAM_EMAIL);
 $extra_json = optional_param('extra_json', '', PARAM_RAW);
 $quantity = required_param('quantity', PARAM_INT);
-$group_account = clean_param($data['group_account'], PARAM_TEXT);
+$group_account = optional_param('group_account', '', PARAM_TEXT);
 $firstname = required_param('firstname', PARAM_TEXT); // First name from the form
 $lastname = required_param('lastname', PARAM_TEXT); // Last name from the form
 
