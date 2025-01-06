@@ -1,7 +1,5 @@
 <?php
 require_once('/var/www/vhosts/moodle/config.php'); // Actual path to Moodle's config.php
-require_login();
-require_capability('moodle/site:config', context_system::instance());
 
 // Set the content type to JSON
 header('Content-Type: application/json');
