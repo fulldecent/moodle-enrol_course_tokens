@@ -13,13 +13,19 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 // Read and decode the JSON input
 $json_input = file_get_contents('php://input');
-$data = json_decode($json_input, true);
 
-// Validate JSON decoding
-if (json_last_error() !== JSON_ERROR_NONE) {
-    http_response_code(400); // Bad Request
-    echo json_encode(['error' => 'Invalid JSON input.']);
-    exit;
+// Only validate JSON if there's actual input
+if (!empty($json_input)) {
+    $data = json_decode($json_input, true);
+
+    // Validate JSON decoding
+    if (json_last_error() !== JSON_ERROR_NONE) {
+        http_response_code(400); // Bad Request
+        echo json_encode(['error' => 'Invalid JSON input.']);
+        exit;
+    }
+} else {
+    $data = [];
 }
 
 // Retrieve secret key from Moodle's configuration
