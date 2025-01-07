@@ -55,7 +55,7 @@ $course_id = (int)$data['course_id'];
 $email = trim($data['email']);
 $extra_json = isset($data['extra_json']) ? json_encode($data['extra_json']) : null;
 $quantity = (int)$data['quantity'];
-$group_account = optional_param('group_account', '', PARAM_TEXT);
+$group_account = isset($data['group_account']) ? trim($data['group_account']) : '';
 $firstname = trim($data['firstname']);
 $lastname = trim($data['lastname']);
 
