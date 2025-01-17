@@ -138,19 +138,57 @@ foreach ($tokens as $token) {
     $group_account = !empty($token->group_account) ? s($token->group_account) : '-';
     echo '<td>' . $group_account . '</td>';
 
-    // Fetch used by and used at
+    // Fetch "Used By" and "Used At" details
     if (!empty($token->user_enrolments_id)) {
         // Fetch the user linked to the enrollment
         $enrollment = $DB->get_record('user_enrolments', array('id' => $token->user_enrolments_id));
-        $used_by_user = $DB->get_record('user', array('id' => $enrollment->userid), 'email');
-        $used_by = $used_by_user ? s($used_by_user->email) : 'none';
-        $used_at = date('Y-m-d', $token->used_on);
+        $used_by_user = $DB->get_record('user', array('id' => $enrollment->userid), 'email, phone1, address');
+
+        if ($used_by_user) {
+            $used_by = s($used_by_user->email);
+            $phone = !empty($used_by_user->phone1) ? s($used_by_user->phone1) : 'N/A';
+            $address = !empty($used_by_user->address) ? s($used_by_user->address) : 'N/A';
+            $used_at = date('Y-m-d', $token->used_on);
+
+            // Render the clickable "Used by" text
+            $modal_trigger = html_writer::tag('a', $used_by, [
+                'href' => '#',
+                'data-toggle' => 'modal',
+                'data-target' => '#userModal' . $enrollment->userid,
+            ]);
+
+            echo '<td>' . $modal_trigger . '</td>';
+            echo '<td>' . s($used_at) . '</td>';
+
+            // Add the modal HTML
+            echo '
+        <div class="modal fade" id="userModal' . $enrollment->userid . '" tabindex="-1" role="dialog" aria-labelledby="userModalLabel' . $enrollment->userid . '" aria-hidden="true">
+            <div class="modal-dialog" role="document">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="userModalLabel' . $enrollment->userid . '">User Details</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <p><strong>Phone Number:</strong> ' . $phone . '</p>
+                        <p><strong>Address:</strong> ' . $address . '</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>';
+        } else {
+            echo '<td>-</td>';
+            echo '<td>-</td>';
+        }
     } else {
-        $used_by = '-';
-        $used_at = '-';
+        echo '<td>-</td>';
+        echo '<td>-</td>';
     }
-    echo '<td>' . s($used_by) . '</td>';
-    echo '<td>' . s($used_at) . '</td>';
     echo '</tr>';
 }
 echo '</table>';
