@@ -16,6 +16,7 @@ $string['timecreated'] = 'Created at';
 $string['enrollment'] = 'Enrolment';
 $string['firstname'] = 'First name';
 $string['lastname'] = 'Last name';
+$string['resendNewAccountEmail'] = 'Resend new account email';
 
 
 $string['activateintroduction'] = 'Activate a token to start your course.';
