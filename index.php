@@ -143,7 +143,7 @@ foreach ($tokens as $token) {
     if (!empty($token->user_enrolments_id)) {
         // Fetch the user linked to the enrollment
         $enrollment = $DB->get_record('user_enrolments', array('id' => $token->user_enrolments_id));
-        $used_by_user = $DB->get_record('user', array('id' => $enrollment->userid), 'email, phone1, address');
+        $used_by_user = $DB->get_record('user', array('id' => $enrollment->userid), 'firstname, lastname, email, phone1, address');
 
         if ($used_by_user) {
             $used_by = s($used_by_user->email);
@@ -167,13 +167,14 @@ foreach ($tokens as $token) {
             <div class="modal-dialog" role="document">
                 <div class="modal-content">
                     <div class="modal-header">
-                        <h5 class="modal-title" id="userModalLabel' . $enrollment->userid . '">User Details</h5>
+                        <h5 class="modal-title" id="userModalLabel' . $enrollment->userid . '">User details</h5>
                         <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                             <span aria-hidden="true">&times;</span>
                         </button>
                     </div>
                     <div class="modal-body">
-                        <p><strong>Phone Number:</strong> ' . $phone . '</p>
+                        <p><strong>Name:</strong> ' . s($used_by_user->firstname) . ' ' . s($used_by_user->lastname) . '</p>
+                        <p><strong>Phone number:</strong> ' . $phone . '</p>
                         <p><strong>Address:</strong> ' . $address . '</p>
                     </div>
                     <div class="modal-footer">
