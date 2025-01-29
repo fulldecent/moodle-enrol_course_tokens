@@ -36,6 +36,7 @@ if (!empty($tokens)) {
     echo html_writer::tag('th', 'Used on');
     echo html_writer::tag('th', 'Enroll myself');
     echo html_writer::tag('th', 'Enroll somebody else');
+    echo html_writer::tag('th', 'eCard');
     echo html_writer::end_tag('tr');
     echo html_writer::end_tag('thead');
     echo html_writer::start_tag('tbody');
@@ -205,7 +206,38 @@ if (!empty($tokens)) {
             echo html_writer::tag('td', '-');
             echo html_writer::tag('td', '-');
         }
-
+        if ($user_id) {
+            // Get the latest certificate (eCard) issue for this user in this course
+            $certificate = $DB->get_record_sql("
+                SELECT ci.id, ci.code, ci.customcertid, ci.userid
+                FROM {customcert_issues} ci
+                JOIN {customcert} c ON ci.customcertid = c.id
+                WHERE ci.userid = :userid AND c.course = :courseid AND (c.name = 'Completion eCard' OR c.name = 'Cognitive eCard')
+                ORDER BY ci.id DESC
+                LIMIT 1",
+                ['userid' => $user_id, 'courseid' => $token->course_id]
+            );
+        
+            if ($certificate && !empty($certificate->code)) {
+                // Generate the verification URL using the 'code' field
+                $certificate_url = new moodle_url('/mod/customcert/verify_certificate.php', ['code' => $certificate->code]);
+        
+                // Convert to string and ensure & is used instead of &amp;
+                $url_string = str_replace('&amp;', '&', $certificate_url->out());
+        
+                // Create the eCard button
+                $ecard_button = html_writer::tag('a', 'View eCard', [
+                    'href' => $url_string,  // Use the modified URL string
+                    'class' => 'btn btn-success',
+                    'target' => '_blank'
+                ]);
+            } else {
+                $ecard_button = html_writer::tag('span', 'No eCard available', ['class' => 'text-muted']);
+            }
+        
+            echo html_writer::tag('td', $ecard_button);
+            echo html_writer::end_tag('tr');
+        }                       
         echo html_writer::end_tag('tr');
     }
 
