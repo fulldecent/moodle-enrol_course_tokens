@@ -194,6 +194,15 @@ foreach ($tokens as $token) {
     echo '<td>';
     echo '<button class="btn btn-secondary resend-email" data-email="' . s($purchaser_email) . '" data-token="' . s($token->code) . '">Resend New Account Email</button>';
     echo '</td>';
+    if (!empty($token->user_enrolments_id)) {
+        echo '<td><form action="unenroll.php" method="post">
+                <input type="hidden" name="token_id" value="' . s($token->id) . '">
+                <input type="hidden" name="sesskey" value="' . sesskey() . '">
+                <button type="submit" class="btn btn-danger">Unenroll</button>
+              </form></td>';
+    } else {
+        echo '<td>-</td>';
+    }
     echo '</tr>';
 }
 echo '</table>';
