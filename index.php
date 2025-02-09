@@ -194,18 +194,130 @@ foreach ($tokens as $token) {
     echo '<td>';
     echo '<button class="btn btn-secondary resend-email" data-email="' . s($purchaser_email) . '" data-token="' . s($token->code) . '">Resend New Account Email</button>';
     echo '</td>';
-    if (!empty($token->user_enrolments_id)) {
-        echo '<td><form action="unenroll.php" method="post">
-                <input type="hidden" name="token_id" value="' . s($token->id) . '">
-                <input type="hidden" name="sesskey" value="' . sesskey() . '">
-                <button type="submit" class="btn btn-danger">Unenroll</button>
-              </form></td>';
+    if (!empty($token->user_enrolments_id) && !empty($used_by_user)) {
+        $user_email = s($used_by_user->email); // Get the correct enrolled user's email
+        $token_id = s($token->id); // Ensure token ID is passed correctly
+    
+        echo '<td>
+            <button type="button" class="btn btn-warning unenroll-btn"
+                data-bs-toggle="tooltip"
+                data-bs-placement="top"
+                title="Clicking this will unenroll ' . $user_email . ' from the course. All progress will be lost. The course token can be used again after unenrolling."
+                data-user-email="' . $user_email . '"
+                data-token-id="' . $token_id . '">
+                Unenroll
+            </button>
+        </td>';
     } else {
         echo '<td>-</td>';
     }
+    
+    if (!empty($token->id)) {
+        $token_id = s($token->id);
+        $is_used = !empty($token->used_on);
+        
+        // Use the same used_by_user logic for consistency
+        $user_email = !empty($used_by_user) ? s($used_by_user->email) : null;
+    
+        echo '<td>';
+        if ($token->voided) {
+            echo '<button type="button" class="btn btn-success unvoid-token-btn"
+                data-bs-toggle="tooltip"
+                data-bs-placement="top"
+                title="Clicking this will unvoid the token, making it usable again."
+                data-token-id="' . $token->id . '">
+                Unvoid Token
+            </button>';
+        } else {
+            $tooltipText = $is_used 
+                ? 'Clicking this will void the token and will unenroll ' . $user_email . ' from the course. All progress will be lost.' 
+                : 'Clicking this will void the token.';
+            
+            echo '<button type="button" class="btn btn-danger void-token-btn"
+                        data-bs-toggle="tooltip"
+                        data-bs-placement="top"
+                        title="' . $tooltipText . '"
+                        data-token-id="' . $token->id . '"
+                        data-user-email="' . ($user_email ?? '') . '"
+                        data-is-used="' . ($is_used ? '1' : '0') . '">
+                        Void Token
+                    </button>';
+        }
+        echo '</td>';
+    } else {
+        echo '<td>-</td>';
+    }    
     echo '</tr>';
 }
 echo '</table>';
+
+echo '
+<div class="modal fade" id="unenrollModal" tabindex="-1" aria-labelledby="unenrollModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="unenrollModalLabel">Confirm Unenrollment</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <strong>Warning!</strong> Clicking this will unenroll <span id="unenrollUserEmail"></span> from the course. 
+                    All progress will be lost. The course token can be used again after unenrolling.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <form id="unenrollForm" action="unenroll.php" method="post">
+                    <input type="hidden" name="token_id" id="unenrollTokenId">
+                    <input type="hidden" name="sesskey" value="' . sesskey() . '">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-danger">Confirm Unenroll</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Modal for voiding a token -->
+<div class="modal fade" id="voidTokenModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Void Token</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p id="voidTokenWarning" class="alert alert-danger"></p> <!-- Dynamic warning message -->
+                <form id="voidTokenForm">
+                    <input type="hidden" id="voidTokenId" name="tokenid">
+                    <div class="mb-3">
+                        <label for="voidNotesInput" class="form-label">Reason for voiding:</label>
+                        <textarea id="voidNotesInput" name="void_notes" class="form-control" required></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-danger">Void Token</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Bootstrap Modal for Unvoid Confirmation -->
+<div class="modal fade" id="unvoidTokenModal" tabindex="-1" aria-labelledby="unvoidTokenModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title" id="unvoidTokenModalLabel">Confirm Unvoid Token</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Are you sure you want to unvoid this token? This action will make it usable again.
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" id="confirmUnvoidToken">Yes, Unvoid</button>
+            </div>
+        </div>
+    </div>
+</div>
+';
 
 // Add JavaScript for AJAX request
 echo '<script>
@@ -264,6 +376,143 @@ echo '<script>
             }
         });
     });
-</script>';
+</script>
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js" integrity="sha384-0pUGZvbkm6XF6gxjEnlmuGrJXVbNuzT9qBBavbLwCsOGabYfZo0T0to5eqruptLy" crossorigin="anonymous"></script>
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+    document.querySelectorAll(".unenroll-btn").forEach(button => {
+        button.addEventListener("click", function() {
+            let userEmail = this.getAttribute("data-user-email");
+            let tokenId = this.getAttribute("data-token-id");
+
+            // Update modal content with the correct user details
+            document.getElementById("unenrollUserEmail").textContent = userEmail;
+            document.getElementById("unenrollTokenId").value = tokenId;
+
+            // Show the modal
+            let unenrollModal = new bootstrap.Modal(document.getElementById("unenrollModal"));
+            unenrollModal.show();
+        });
+    });
+
+    // Ensure the form submits only after confirmation
+    document.getElementById("unenrollForm").addEventListener("submit", function(event) {
+        let tokenId = document.getElementById("unenrollTokenId").value;
+        if (!tokenId) {
+            event.preventDefault();
+            alert("Invalid token ID.");
+        }
+    });
+});
+document.addEventListener("DOMContentLoaded", function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll(`[data-bs-toggle="tooltip"]`));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+document.addEventListener("DOMContentLoaded", function() {
+    document.querySelectorAll(".void-token-btn, .unvoid-token-btn").forEach(button => {
+        button.addEventListener("click", function() {
+            let tokenId = this.getAttribute("data-token-id");
+            let isVoiding = this.classList.contains("void-token-btn");
+
+            if (isVoiding) {
+                let userEmail = this.getAttribute("data-user-email");
+                let isUsed = this.getAttribute("data-is-used") === "1";
+
+                document.getElementById("voidTokenId").value = tokenId;
+                let warningText = isUsed
+                    ? `Clicking this will void the token and will unenroll ${userEmail} from the course. All progress will be lost.`
+                    : "Clicking this will void the token.";
+
+                document.getElementById("voidTokenWarning").textContent = warningText;
+
+                let voidTokenModal = new bootstrap.Modal(document.getElementById("voidTokenModal"));
+                voidTokenModal.show();
+
+                // Handle form submission for voiding
+                document.getElementById("voidTokenForm").onsubmit = function(event) {
+                    event.preventDefault(); // Prevent default form submission
+
+                    let voidNotes = document.getElementById("voidNotesInput").value.trim();
+                    if (!voidNotes) {
+                        alert("Please provide a reason for voiding.");
+                        return;
+                    }
+
+                    let formData = new URLSearchParams();
+                    formData.append("tokenid", tokenId);
+                    formData.append("void_notes", voidNotes);
+                    formData.append("sesskey", M.cfg.sesskey); // Ensure security token is sent
+
+                    fetch("void_token.php", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                        body: formData
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            // Change the button to "Unvoid Token"
+                            let button = document.querySelector(`[data-token-id="${tokenId}"]`);
+                            button.classList.remove("void-token-btn", "btn-danger");
+                            button.classList.add("unvoid-token-btn", "btn-success");
+                            button.textContent = "Unvoid Token";
+                            button.setAttribute("title", "Clicking this will unvoid the token, making it usable again.");
+                            
+                            // Close the modal
+                            let voidTokenModal = bootstrap.Modal.getInstance(document.getElementById("voidTokenModal"));
+                            voidTokenModal.hide();
+                            voidTokenForm.reset(); // Clear form fields
+                        } else {
+                            alert("Error: " + data.message);
+                        }
+                    });
+                };
+            } else {
+                // AJAX request to unvoid the token
+                fetch("unvoid_token.php", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: `token_id=${tokenId}&sesskey=${M.cfg.sesskey}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        let button = document.querySelector(`[data-token-id="${tokenId}"]`);
+                        button.classList.remove("unvoid-token-btn", "btn-success");
+                        button.classList.add("void-token-btn", "btn-danger");
+                        button.textContent = "Void Token";
+                        button.setAttribute("title", "Clicking this will void the token.");
+                    } else {
+                        alert("Error: " + data.message);
+                    }
+                });
+            }
+        });
+    });
+});
+document.addEventListener("DOMContentLoaded", function() {
+    let selectedTokenId = null;
+
+    // When Unvoid Token button is clicked
+    document.querySelectorAll(".unvoid-token-btn").forEach(button => {
+        button.addEventListener("click", function() {
+            selectedTokenId = this.getAttribute("data-token-id"); 
+            var unvoidModal = new bootstrap.Modal(document.getElementById("unvoidTokenModal"));
+            unvoidModal.show();
+        });
+    });
+
+    // When "Yes, Unvoid" is clicked
+    document.getElementById("confirmUnvoidToken").addEventListener("click", function() {
+        if (selectedTokenId) {
+            window.location.href = "unvoid_token.php?token_id=" + selectedTokenId;
+        }
+    });
+});
+</script>
+';
 
 echo $OUTPUT->footer();

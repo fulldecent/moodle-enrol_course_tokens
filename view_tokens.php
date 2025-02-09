@@ -16,7 +16,7 @@ $sql = "SELECT t.*, u.email as enrolled_user_email
         FROM {course_tokens} t
         LEFT JOIN {user_enrolments} ue ON t.user_enrolments_id = ue.id
         LEFT JOIN {user} u ON ue.userid = u.id
-        WHERE t.user_id = ?
+        WHERE t.user_id = ? AND t.voided_at IS NULL
         ORDER BY t.id DESC";
 
 $tokens = $DB->get_records_sql($sql, [$USER->id]);
