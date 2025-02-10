@@ -1,4 +1,4 @@
-<XMLDB PATH="enrol/course_tokens/db" VERSION="2024120304" COMMENT="XMLDB file for Moodle enrol/course_tokens"
+<XMLDB PATH="enrol/course_tokens/db" VERSION="2024120305" COMMENT="XMLDB file for Moodle enrol/course_tokens"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:noNamespaceSchemaLocation="../../../lib/xmldb/xmldb.xsd">
   <TABLES>
@@ -9,7 +9,9 @@
         <FIELD NAME="timemodified" TYPE="int" LENGTH="10" NOTNULL="true"/>
         <FIELD NAME="code" TYPE="char" LENGTH="50" NOTNULL="true"/>
         <FIELD NAME="course_id" TYPE="int" LENGTH="10" NOTNULL="true"/>
-        <FIELD NAME="voided" TYPE="binary" LENGTH="1" NOTNULL="true"/> 
+        <FIELD NAME="voided" TYPE="int" LENGTH="1" NOTNULL="true" DEFAULT="0"/>
+        <FIELD NAME="voided_at" TYPE="int" LENGTH="10" NOTNULL="false"/> 
+        <FIELD NAME="voided_notes" TYPE="text" NOTNULL="false"/>
         <FIELD NAME="user_enrolments_id" TYPE="int" LENGTH="10" NOTNULL="false"/>
         <FIELD NAME="extra_json" TYPE="text" NOTNULL="false"/>
         <FIELD NAME="user_id" TYPE="int" LENGTH="10" NOTNULL="false"/>

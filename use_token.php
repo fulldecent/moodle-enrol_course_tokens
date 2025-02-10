@@ -28,6 +28,14 @@ if (!$token) {
     exit();
 }
 
+// Prevent use of voided tokens
+if (!empty($token->voided)) {
+    echo $OUTPUT->header();
+    echo $OUTPUT->notification('This token has been voided and cannot be used.', 'error');
+    echo $OUTPUT->footer();
+    exit();
+}
+
 // Check if the token has already been used
 if (!empty($token->user_enrolments_id)) {
     echo $OUTPUT->header();
