@@ -4,6 +4,9 @@ require_login();
 
 $token_id = required_param('token_id', PARAM_INT);
 
+// Update the database to unvoid the token
 $DB->execute("UPDATE {course_tokens} SET voided = 0, voided_at = NULL, voided_notes = NULL WHERE id = ?", [$token_id]);
 
-redirect(new moodle_url('/enrol/course_tokens/'), 'Token successfully unvoided.', null, \core\output\notification::NOTIFY_SUCCESS);
+// Return JSON response instead of redirecting
+echo json_encode(["success" => true, "message" => "Token successfully unvoided."]);
+exit; // Ensure no extra output

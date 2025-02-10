@@ -3,19 +3,24 @@ require_once('../../config.php');
 require_login();
 require_capability('moodle/site:config', context_system::instance());
 
+// Set JSON header
+header('Content-Type: application/json');
+
 $token_id = required_param('token_id', PARAM_INT);
 $sesskey = required_param('sesskey', PARAM_ALPHANUM);
 
 if (!confirm_sesskey($sesskey)) {
-    print_error('invalidsesskey');
+    echo json_encode(['success' => false, 'message' => 'Invalid session key']);
+    exit;
 }
 
 // Call the unenroll function
 if (unenroll_user_by_token($token_id)) {
-    redirect(new moodle_url('/enrol/course_tokens/index.php'), 'User unenrolled successfully.', null, \core\output\notification::NOTIFY_SUCCESS);
+    echo json_encode(['success' => true, 'message' => 'User unenrolled successfully']);
 } else {
-    redirect(new moodle_url('/enrol/course_tokens/index.php'), 'Failed to unenroll user.', null, \core\output\notification::NOTIFY_ERROR);
+    echo json_encode(['success' => false, 'message' => 'Failed to unenroll user']);
 }
+exit;
 
 function unenroll_user_by_token($token_id) {
     global $DB;
@@ -57,3 +62,4 @@ function unenroll_user_by_token($token_id) {
 
     return true;
 }
+exit;

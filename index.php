@@ -281,7 +281,7 @@ echo '
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Void Token</h5>
+                <h5 class="modal-title">Void token</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -304,7 +304,7 @@ echo '
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title" id="unvoidTokenModalLabel">Confirm Unvoid Token</h5>
+                <h5 class="modal-title" id="unvoidTokenModalLabel">Confirm unvoid token</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
@@ -380,137 +380,230 @@ echo '<script>
 <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.min.js" integrity="sha384-0pUGZvbkm6XF6gxjEnlmuGrJXVbNuzT9qBBavbLwCsOGabYfZo0T0to5eqruptLy" crossorigin="anonymous"></script>
 <script>
-    document.addEventListener("DOMContentLoaded", function() {
+    document.addEventListener("DOMContentLoaded", () => {
+    initializeTooltips();
+    setupUnenrollHandlers();
+    setupVoidUnvoidHandlers();
+    setupConfirmUnvoidHandler();
+});
+
+// Initialize Bootstrap tooltips
+const initializeTooltips = () => {
+    document.querySelectorAll(`[data-bs-toggle="tooltip"]`).forEach(el => {
+        new bootstrap.Tooltip(el);
+    });
+};
+
+// Generic function to show Bootstrap modal
+const showModal = (modalId) => {
+    const modal = new bootstrap.Modal(document.getElementById(modalId));
+    modal.show();
+};
+
+// Unenrollment handlers
+const setupUnenrollHandlers = () => {
     document.querySelectorAll(".unenroll-btn").forEach(button => {
-        button.addEventListener("click", function() {
-            let userEmail = this.getAttribute("data-user-email");
-            let tokenId = this.getAttribute("data-token-id");
+        button.addEventListener("click", () => {
+            const tokenId = button.getAttribute("data-token-id");
+            const userEmail = button.getAttribute("data-user-email");
 
-            // Update modal content with the correct user details
-            document.getElementById("unenrollUserEmail").textContent = userEmail;
             document.getElementById("unenrollTokenId").value = tokenId;
+            document.getElementById("unenrollUserEmail").textContent = userEmail;
 
-            // Show the modal
-            let unenrollModal = new bootstrap.Modal(document.getElementById("unenrollModal"));
-            unenrollModal.show();
+            showModal("unenrollModal");
         });
     });
 
-    // Ensure the form submits only after confirmation
-    document.getElementById("unenrollForm").addEventListener("submit", function(event) {
-        let tokenId = document.getElementById("unenrollTokenId").value;
+    document.getElementById("unenrollForm").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const tokenId = document.getElementById("unenrollTokenId").value;
         if (!tokenId) {
-            event.preventDefault();
             alert("Invalid token ID.");
+            return;
+        }
+
+        try {
+            const response = await fetch("unenroll.php", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: new URLSearchParams({ token_id: tokenId, sesskey: M.cfg.sesskey })
+            });
+
+            const result = await response.json();
+            if (result.success) {
+                bootstrap.Modal.getInstance(document.getElementById("unenrollModal")).hide();
+                alert("User unenrolled successfully.");
+                window.location.reload();
+            } else {
+                throw new Error(result.message);
+            }
+        } catch (error) {
+            alert(`Error: ${error.message}`);
         }
     });
-});
-document.addEventListener("DOMContentLoaded", function() {
-    var tooltipTriggerList = [].slice.call(document.querySelectorAll(`[data-bs-toggle="tooltip"]`));
-    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl);
-    });
-});
-document.addEventListener("DOMContentLoaded", function() {
+};
+
+// Void and unvoid token handlers
+const setupVoidUnvoidHandlers = () => {
     document.querySelectorAll(".void-token-btn, .unvoid-token-btn").forEach(button => {
-        button.addEventListener("click", function() {
-            let tokenId = this.getAttribute("data-token-id");
-            let isVoiding = this.classList.contains("void-token-btn");
+        button.addEventListener("click", function () {
+            const tokenId = this.getAttribute("data-token-id");
+            const isVoiding = this.classList.contains("void-token-btn");
 
             if (isVoiding) {
-                let userEmail = this.getAttribute("data-user-email");
-                let isUsed = this.getAttribute("data-is-used") === "1";
-
-                document.getElementById("voidTokenId").value = tokenId;
-                let warningText = isUsed
-                    ? `Clicking this will void the token and will unenroll ${userEmail} from the course. All progress will be lost.`
-                    : "Clicking this will void the token.";
-
-                document.getElementById("voidTokenWarning").textContent = warningText;
-
-                let voidTokenModal = new bootstrap.Modal(document.getElementById("voidTokenModal"));
-                voidTokenModal.show();
-
-                // Handle form submission for voiding
-                document.getElementById("voidTokenForm").onsubmit = function(event) {
-                    event.preventDefault(); // Prevent default form submission
-
-                    let voidNotes = document.getElementById("voidNotesInput").value.trim();
-                    if (!voidNotes) {
-                        alert("Please provide a reason for voiding.");
-                        return;
-                    }
-
-                    let formData = new URLSearchParams();
-                    formData.append("tokenid", tokenId);
-                    formData.append("void_notes", voidNotes);
-                    formData.append("sesskey", M.cfg.sesskey); // Ensure security token is sent
-
-                    fetch("void_token.php", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                        body: formData
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            // Change the button to "Unvoid Token"
-                            let button = document.querySelector(`[data-token-id="${tokenId}"]`);
-                            button.classList.remove("void-token-btn", "btn-danger");
-                            button.classList.add("unvoid-token-btn", "btn-success");
-                            button.textContent = "Unvoid Token";
-                            button.setAttribute("title", "Clicking this will unvoid the token, making it usable again.");
-                            
-                            // Close the modal
-                            let voidTokenModal = bootstrap.Modal.getInstance(document.getElementById("voidTokenModal"));
-                            voidTokenModal.hide();
-                            voidTokenForm.reset(); // Clear form fields
-                        } else {
-                            alert("Error: " + data.message);
-                        }
-                    });
-                };
+                handleVoidToken(this, tokenId);
             } else {
-                // AJAX request to unvoid the token
-                fetch("unvoid_token.php", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: `token_id=${tokenId}&sesskey=${M.cfg.sesskey}`
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        let button = document.querySelector(`[data-token-id="${tokenId}"]`);
-                        button.classList.remove("unvoid-token-btn", "btn-success");
-                        button.classList.add("void-token-btn", "btn-danger");
-                        button.textContent = "Void Token";
-                        button.setAttribute("title", "Clicking this will void the token.");
-                    } else {
-                        alert("Error: " + data.message);
-                    }
-                });
+                // ⛔️ Do NOT call `handleUnvoidToken()` directly!
+                // Just show the confirmation modal and store the tokenId.
+                selectedTokenId = tokenId;
+                showModal("unvoidTokenModal");
             }
         });
     });
-});
-document.addEventListener("DOMContentLoaded", function() {
-    let selectedTokenId = null;
+};
 
-    // When Unvoid Token button is clicked
-    document.querySelectorAll(".unvoid-token-btn").forEach(button => {
-        button.addEventListener("click", function() {
-            selectedTokenId = this.getAttribute("data-token-id"); 
-            var unvoidModal = new bootstrap.Modal(document.getElementById("unvoidTokenModal"));
-            unvoidModal.show();
-        });
-    });
+// Handle void token logic
+const handleVoidToken = (button, tokenId) => {
+    const userEmail = button.getAttribute("data-user-email");
+    const isUsed = button.getAttribute("data-is-used") === "1";
 
-    // When "Yes, Unvoid" is clicked
-    document.getElementById("confirmUnvoidToken").addEventListener("click", function() {
-        if (selectedTokenId) {
-            window.location.href = "unvoid_token.php?token_id=" + selectedTokenId;
+    document.getElementById("voidTokenId").value = tokenId;
+    document.getElementById("voidTokenWarning").textContent = isUsed
+        ? `Clicking this will void the token and will unenroll ${userEmail} from the course. All progress will be lost.`
+        : "Clicking this will void the token.";
+
+    showModal("voidTokenModal");
+
+    document.getElementById("voidTokenForm").onsubmit = async (event) => {
+        event.preventDefault();
+        const voidNotes = document.getElementById("voidNotesInput").value.trim();
+        if (!voidNotes) {
+            alert("Please provide a reason for voiding.");
+            return;
         }
+
+        try {
+            if (isUsed) {
+                await unenrollUser(tokenId);
+            }
+            await voidToken(tokenId, voidNotes);
+            updateTokenUI(button, false);
+        } catch (error) {
+            alert(`Error: ${error.message}`);
+        }
+    };
+};
+
+// Unenroll a user via AJAX
+const unenrollUser = async (tokenId) => {
+    const response = await fetch("unenroll.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ token_id: tokenId, sesskey: M.cfg.sesskey, is_ajax: 1 })
     });
+
+    const result = await response.json();
+    if (!result.success) {
+        throw new Error(`Failed to unenroll user: ${result.message}`);
+    }
+};
+
+// Void a token via AJAX
+const voidToken = async (tokenId, voidNotes) => {
+    const response = await fetch("void_token.php", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ tokenid: tokenId, void_notes: voidNotes, sesskey: M.cfg.sesskey })
+    });
+
+    const result = await response.json();
+    if (!result.success) {
+        throw new Error(`Failed to void token: ${result.message}`);
+    }
+
+    bootstrap.Modal.getInstance(document.getElementById("voidTokenModal")).hide();
+    document.getElementById("voidTokenForm").reset();
+    window.location.reload();
+};
+
+// Handle unvoiding a token
+const handleUnvoidToken = async (tokenId) => {
+    try {
+        const response = await fetch("unvoid_token.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ token_id: tokenId, sesskey: M.cfg.sesskey })
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            updateTokenUI(document.querySelector(`[data-token-id="${tokenId}"]`), true);
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error) {
+        alert(`Error: ${error.message}`);
+    }
+};
+
+// Update UI after token action
+const updateTokenUI = (button, isUnvoiding) => {
+    if (isUnvoiding) {
+        button.classList.remove("unvoid-token-btn", "btn-success");
+        button.classList.add("void-token-btn", "btn-danger");
+        button.textContent = "Void Token";
+        button.setAttribute("title", "Clicking this will void the token.");
+    } else {
+        button.classList.remove("void-token-btn", "btn-danger");
+        button.classList.add("unvoid-token-btn", "btn-success");
+        button.textContent = "Unvoid Token";
+        button.setAttribute("title", "Clicking this will unvoid the token, making it usable again.");
+    }
+    window.location.reload();
+};
+
+// Handle confirm unvoid modal
+let selectedTokenId = null;
+
+// Step 1: Show modal when Unvoid Token button is clicked
+document.querySelectorAll(".unvoid-token-btn").forEach(button => {
+    button.addEventListener("click", function() {
+        selectedTokenId = this.getAttribute("data-token-id"); 
+        
+        // Show the modal (Only shows the modal, does NOT unvoid yet)
+        let unvoidModal = new bootstrap.Modal(document.getElementById("unvoidTokenModal"));
+        unvoidModal.show();
+    });
+});
+
+// Step 2: Only unvoid when user confirms
+document.getElementById("confirmUnvoidToken").addEventListener("click", async () => {
+    if (!selectedTokenId) return;
+
+    try {
+        let response = await fetch("unvoid_token.php", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ token_id: selectedTokenId, sesskey: M.cfg.sesskey })
+        });
+
+        let result = await response.json();
+
+        if (result.success) {
+            alert(result.message);
+
+            // Hide the modal manually after successful unvoiding
+            let unvoidModal = bootstrap.Modal.getInstance(document.getElementById("unvoidTokenModal"));
+            unvoidModal.hide();
+
+            // Refresh the page to reflect changes
+            window.location.reload();
+        } else {
+            throw new Error(result.message);
+        }
+    } catch (error) {
+        alert("Error: " + error.message);
+    }
 });
 </script>
 ';
