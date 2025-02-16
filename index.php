@@ -384,7 +384,6 @@ echo '<script>
     initializeTooltips();
     setupUnenrollHandlers();
     setupVoidUnvoidHandlers();
-    setupConfirmUnvoidHandler();
 });
 
 // Initialize Bootstrap tooltips

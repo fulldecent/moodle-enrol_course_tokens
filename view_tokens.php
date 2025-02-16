@@ -11,6 +11,9 @@ $PAGE->set_context(context_user::instance($USER->id));
 $PAGE->set_title('My course tokens');
 $PAGE->set_heading('My course tokens');
 
+// Define the base URL for token operations outside the loop
+$use_token_url = new moodle_url('/enrol/course_tokens/use_token.php');
+
 // Fetch tokens associated with the logged-in user
 $sql = "SELECT t.*, u.email as enrolled_user_email
         FROM {course_tokens} t
@@ -256,39 +259,39 @@ echo $OUTPUT->footer();
 echo '
 <script>
     const submitEnrollForm = (tokenId) => {
-    const form = document.getElementById(`enrollForm${tokenId}`);
-    
-    // Check if form is valid before submitting
-    if (!form.checkValidity()) {
-        alert("Please fill out all required fields.");
-        return; // Do not submit if the form is invalid
-    }
-    
-    const formData = new FormData(form);
-
-    // Send the form data via AJAX
-    fetch("' . $use_token_url->out(false) . '", {
-        method: "POST",
-        body: formData
-    })
-    .then(response => response.json()) // Parse JSON response
-    .then(data => {
-        // Check if the response status is success
-        if (data.status === "success") {
-            alert("Enrollment successful");
-            location.reload(); // Reload page to reflect changes
-        } else {
-            // Handle error message from the server
-            alert(data.message || "An error occurred during enrollment.");
-            location.reload(); // Reload page after error alert
+        const form = document.getElementById(`enrollForm${tokenId}`);
+        
+        // Check if form is valid before submitting
+        if (!form.checkValidity()) {
+            alert("Please fill out all required fields.");
+            return; // Do not submit if the form is invalid
         }
-    })
-    .catch(error => {
-        console.error("Error:", error);
-        alert("An error occurred while processing the enrollment.");
-        location.reload(); // Reload page after error alert
-    });
-};
+        
+        const formData = new FormData(form);
+
+        // Use the base URL and append the token code from the form
+        fetch("' . $use_token_url->out(false) . '", {
+            method: "POST",
+            body: formData
+        })
+        .then(response => response.json()) // Parse JSON response
+        .then(data => {
+            // Check if the response status is success
+            if (data.status === "success") {
+                alert("Enrollment successful");
+                location.reload(); // Reload page to reflect changes
+            } else {
+                // Handle error message from the server
+                alert(data.message || "An error occurred during enrollment.");
+                location.reload(); // Reload page after error alert
+            }
+        })
+        .catch(error => {
+            console.error("Error:", error);
+            alert("An error occurred while processing the enrollment.");
+            location.reload(); // Reload page after error alert
+        });
+    };
 </script>
 ';
 ?>
