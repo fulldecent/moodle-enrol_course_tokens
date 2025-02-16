@@ -11,6 +11,9 @@ $PAGE->set_context(context_user::instance($USER->id));
 $PAGE->set_title('My course tokens');
 $PAGE->set_heading('My course tokens');
 
+// Define the base URL for token operations outside the loop
+$use_token_url = new moodle_url('/enrol/course_tokens/use_token.php');
+
 // Fetch tokens associated with the logged-in user
 $sql = "SELECT t.*, u.email as enrolled_user_email
         FROM {course_tokens} t
@@ -266,7 +269,7 @@ echo '
     
     const formData = new FormData(form);
 
-    // Send the form data via AJAX
+    // Use the base URL and append the token code from the form
     fetch("' . $use_token_url->out(false) . '", {
         method: "POST",
         body: formData
