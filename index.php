@@ -358,19 +358,32 @@ echo '<script>
             const token = this.getAttribute("data-token");
 
             if (email && token) {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => {
+                    controller.abort();
+                    alert("Server is taking longer than normal to resend the email. Please try again.");
+                }, 8000);
+
                 fetch("resend-new-account-email.php", {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/x-www-form-urlencoded"
                     },
-                    body: `email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}&sesskey=${M.cfg.sesskey}`
+                    body: `email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}&sesskey=${M.cfg.sesskey}`,
+                    signal: controller.signal
                 })
                 .then(response => response.json())
                 .then(data => {
+                    clearTimeout(timeout); // Clear the timeout if the request completes
                     if (data.success) {
                         alert("Email resent successfully.");
                     } else {
                         alert("Error resending email: " + data.error);
+                    }
+                })
+                .catch(error => {
+                    if (error.name !== "AbortError") {
+                        alert("Server is taking longer than expected. Please try again.");
                     }
                 });
             }
