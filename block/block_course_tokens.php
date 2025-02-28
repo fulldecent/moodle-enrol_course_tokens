@@ -228,7 +228,6 @@ class block_course_tokens extends block_base
             'href' => '/enrol/course_tokens/view_tokens.php',
         ]);
 
-
         // Add the form and AJAX functionality
         $this->content->text .= '
         <script>
@@ -244,10 +243,14 @@ class block_course_tokens extends block_base
                     method: "POST",
                     body: formData
                 })
-                .then(response => response.text())
+                .then(response => response.json()) // Ensure JSON parsing
                 .then(data => {
-                    alert("Enrollment successful");
-                    location.reload();
+                    if (data.status === "error" && data.message) {
+                        alert(data.message); // Show the error message
+                    } else {
+                        alert("Enrollment successful!"); // Adjust based on success response
+                    }
+                    location.reload(); // Reload the page after alert
                 })
                 .catch(error => {
                     alert("An error occurred while processing the enrollment.");
