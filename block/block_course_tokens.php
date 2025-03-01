@@ -243,53 +243,32 @@ class block_course_tokens extends block_base
                     method: "POST",
                     body: formData
                 })
-                .then(response => response.json()) // Ensure JSON parsing
-                .then(data => {
-                    if (data.status === "error" && data.message) {
-                        alert(data.message); // Show the error message
-                    } else {
-                        alert("Enrollment successful!"); // Adjust based on success response
+                .then(response => response.text())
+                .then(text => {
+                    try {
+                        var data = JSON.parse(text);
+                    } catch (error) {
+                        alert("Unexpected response from server. Please contact at supprt@pacificmedicaltraining.com");
+                        location.reload();
+                        return;
                     }
-                    location.reload(); // Reload the page after alert
+
+                    if (data.status === "error" && data.message) {
+                        alert(data.message);
+                        location.reload();
+                    } else if (data.status === "redirect" && data.redirect_url) {
+                        alert(data.message);
+                        window.location.href = data.redirect_url;
+                    } else {
+                        alert("Enrollment successful!");
+                        location.reload();
+                    }
                 })
                 .catch(error => {
                     alert("An error occurred while processing the enrollment.");
+                    location.reload();
                 });
             }
-
-            document.addEventListener("DOMContentLoaded", function () {
-            let tableRows = document.querySelectorAll("table.table tbody tr td:first-child");
-            let hasAhaCourse = Array.from(tableRows).some(td => td.textContent.includes("AHA"));
-            
-            if (hasAhaCourse) {
-                let crossSellingBox = document.getElementById("cross-selling-box");
-                if (crossSellingBox) {
-                    let ahaSection = document.createElement("div");
-                    ahaSection.innerHTML = `
-                        <p class="font-weight-bold">AHA courses</p>
-                        <div class="d-flex flex-wrap gap-2">
-                            <form class="d-inline-block" action="https://api.pacificmedicaltraining.com/public/checkout" method="post">
-                                <input name="items[46339926622445]" type="hidden" value="1">
-                                <input name="source_url" type="hidden" value="https://learn.pacificmedicaltraining.com/my/">
-                                <button class="btn btn-light border mb-1 mx-1 course" style="border-left: 3px solid red!important;" title="CE Credits: 8 (AMA, ANCC, ACPE, ADA)" data-bs-toggle="tooltip">AHA ACLS with skills</button>
-                            </form>
-                            <form class="d-inline-block" action="https://api.pacificmedicaltraining.com/public/checkout" method="post">
-                                <input name="items[46339926917357]" type="hidden" value="1">
-                                <input name="source_url" type="hidden" value="https://learn.pacificmedicaltraining.com/my/">
-                                <button class="btn btn-light border mb-1 mx-1 course" style="border-left: 3px solid purple!important;" title="CE Credits: 8 (AMA, ANCC, ACPE, ADA)" data-bs-toggle="tooltip">AHA PALS with skills</button>
-                            </form>
-                            <form class="d-inline-block" action="https://api.pacificmedicaltraining.com/public/checkout" method="post">
-                                <input name="items[46339926687981]" type="hidden" value="1">
-                                <input name="source_url" type="hidden" value="https://learn.pacificmedicaltraining.com/my/">
-                                <button class="btn btn-light border mb-1 mx-1 course" style="border-left: 3px solid blue!important;" title="CE Credits: 8 (AMA, ANCC, ACPE, ADA)" data-bs-toggle="tooltip">AHA BLS with skills</button>
-                            </form>
-                        </div>
-                        <hr>
-                    `;
-                    crossSellingBox.prepend(ahaSection);
-                }
-            }
-        });
         </script>';
 
         return $this->content;

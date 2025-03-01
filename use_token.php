@@ -124,6 +124,7 @@ if ($enrol_email) {
 } else {
     // Use the currently logged-in user if no email is provided
     $enrol_user = $USER;
+
     // Check if the currently logged-in user is already enrolled in the course
     $enrolled_user = $DB->get_record_sql(
         "SELECT ue.id 
@@ -134,17 +135,11 @@ if ($enrol_email) {
     );
 
     if ($enrolled_user) {
-        // Output the header (optional, if you need to include it for the page structure)
-        echo $OUTPUT->header();
-
-        // Use JavaScript for alert and redirection
-        echo '<script type="text/javascript">
-            alert("You are already enrolled in this course. This token is not being spent.");
-            window.location.href = "/enrol/course_tokens/view_tokens.php";
-        </script>';
-
-        // Output the footer (optional, if you need to include it for the page structure)
-        echo $OUTPUT->footer();
+        // Return JSON error response instead of HTML/JavaScript
+        echo json_encode([
+            'status' => 'error',
+            'message' => 'You are previously already enrolled in this course. This token is not being spent.'
+        ]);
         exit();
     }
 }
@@ -164,8 +159,8 @@ if ($userEnrolment) {
 }
 
 // Get phone number and address from the POST request
-$phone_number = required_param('phone_number', PARAM_TEXT);
-$address = required_param('address', PARAM_TEXT);
+$phone_number = isset($_REQUEST['phone_number']) ? optional_param('phone_number', '', PARAM_TEXT) : null;
+$address = isset($_REQUEST['address']) ? optional_param('address', '', PARAM_TEXT) : null;
 
 // Check if phone number or address is provided
 if ($phone_number || $address) {
@@ -225,9 +220,13 @@ if (!email_to_user($enrol_user, $from_user, $subject, $message)) {
 }
 
 if ($enrol_user->email === $USER->email) {
-    // Redirect to the course page
-    $redirectUrl = new moodle_url('/course/view.php', ['id' => $course->id]);
-    redirect($redirectUrl, 'You have been successfully enrolled in the course.', null, \core\output\notification::NOTIFY_SUCCESS);
+    // Return JSON response instead of redirecting
+    echo json_encode([
+        'status' => 'redirect',
+        'redirect_url' => (new moodle_url('/course/view.php', ['id' => $course->id]))->out(false),
+        'message' => 'You have been successfully enrolled in the course.'
+    ]);
+    exit();
 } else {
     // Return a success response in JSON format
     echo json_encode([
