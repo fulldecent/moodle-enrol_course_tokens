@@ -147,14 +147,17 @@ if (!empty($tokens)) {
 
         // Show "Enroll Myself" and "Enroll Somebody Else" buttons for available tokens
         if ($status === 'Available') {
-            $use_token_url = new moodle_url('/enrol/course_tokens/use_token.php', ['token_code' => $token->code]);
-            $use_button = html_writer::tag('a', 'Enroll Myself', array(
-                'href' => $use_token_url->out(),
-                'class' => 'btn btn-primary'
-            ));
-            echo html_writer::tag('td', $use_button);
+            // Enroll Myself Form and Button
+            $use_token_url = new moodle_url('/enrol/course_tokens/use_token.php');
+            echo '
+            <td>
+                <form id="enrollMyselfForm' . $token->id . '">
+                    <input type="hidden" name="token_code" value="' . $token->code . '">
+                    <button type="button" class="btn btn-primary" onclick="submitEnrollForm(' . $token->id . ', \'myself\')">Enroll Myself</button>
+                </form>
+            </td>';
 
-            // Add "Enroll Somebody Else" button with modal trigger
+            // Enroll Somebody Else Button (modified to use same function)
             $share_button = html_writer::tag('button', 'Enroll Somebody Else', array(
                 'class' => 'btn btn-secondary',
                 'data-toggle' => 'modal',
@@ -258,40 +261,48 @@ echo $OUTPUT->footer();
 // Add JavaScript to submit the form via AJAX
 echo '
 <script>
-    const submitEnrollForm = (tokenId) => {
-    const form = document.getElementById(`enrollForm${tokenId}`);
-    
-    // Check if form is valid before submitting
-    if (!form.checkValidity()) {
-        alert("Please fill out all required fields.");
-        return; // Do not submit if the form is invalid
-    }
-    
-    const formData = new FormData(form);
-
-    // Use the base URL and append the token code from the form
-    fetch("' . $use_token_url->out(false) . '", {
-        method: "POST",
-        body: formData
-    })
-    .then(response => response.json()) // Parse JSON response
-    .then(data => {
-        // Check if the response status is success
-        if (data.status === "success") {
-            alert("Enrollment successful");
-            location.reload(); // Reload page to reflect changes
+    const submitEnrollForm = (tokenId, type = "other") => {
+        let form;
+        if (type === "myself") {
+            form = document.getElementById(`enrollMyselfForm${tokenId}`);
         } else {
-            // Handle error message from the server
-            alert(data.message || "An error occurred during enrollment.");
-            location.reload(); // Reload page after error alert
+            form = document.getElementById(`enrollForm${tokenId}`);
+            
+            // Check form validity for "Enroll Somebody Else"
+            if (!form.checkValidity()) {
+                alert("Please fill out all required fields.");
+                return;
+            }
         }
-    })
-    .catch(error => {
-        console.error("Error:", error);
-        alert("An error occurred while processing the enrollment.");
-        location.reload(); // Reload page after error alert
-    });
-};
+
+        const formData = new FormData(form);
+
+        fetch("' . $use_token_url->out(false) . '", {
+            method: "POST",
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === "redirect") {
+                // Handle redirect for "Enroll Myself"
+                alert(data.message || "You have been successfully enrolled in the course.");
+                window.location.href = data.redirect_url;
+            } else if (data.status === "success") {
+                // Handle success for "Enroll Somebody Else"
+                alert(data.message || "User successfully enrolled in the course.");
+                location.reload();
+            } else {
+                // Handle any error case
+                alert(data.message || "An error occurred during enrollment.");
+                location.reload();
+            }
+        })
+        .catch(error => {
+            console.error("Error:", error);
+            alert("An error occurred while processing the enrollment.");
+            location.reload();
+        });
+    };
 </script>
 ';
 ?>
