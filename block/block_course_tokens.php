@@ -17,13 +17,14 @@ class block_course_tokens extends block_base
             return $this->content;
         }
 
-        // SQL query to fetch tokens associated with the logged-in user
-        $sql = "SELECT t.*, u.email as enrolled_user_email
-            FROM {course_tokens} t
-            LEFT JOIN {user_enrolments} ue ON t.user_enrolments_id = ue.id
-            LEFT JOIN {user} u ON ue.userid = u.id
-            WHERE t.user_id = ? AND t.voided_at IS NULL
-            ORDER BY t.id DESC";
+        // SQL query to fetch tokens and course names
+        $sql = "SELECT t.*, u.email as enrolled_user_email, c.fullname as course_name
+                FROM {course_tokens} t
+                LEFT JOIN {user_enrolments} ue ON t.user_enrolments_id = ue.id
+                LEFT JOIN {user} u ON ue.userid = u.id
+                JOIN {course} c ON t.course_id = c.id
+                WHERE t.user_id = ? AND t.voided_at IS NULL
+                ORDER BY t.id DESC";
 
         // Execute the SQL query and get the tokens
         $tokens = $DB->get_records_sql($sql, [$USER->id]);
@@ -39,9 +40,7 @@ class block_course_tokens extends block_base
         $course_data = [];
 
         foreach ($tokens as $token) {
-            // Fetch course details
-            $course = $DB->get_record('course', ['id' => $token->course_id], 'fullname');
-            $course_name = $course ? $course->fullname : 'Unknown Course';
+            $course_name = $token->course_name ?: 'Unknown Course'; // Use course_name from query
 
             // Initialize course data if not already set
             if (!isset($course_data[$course_name])) {
@@ -103,8 +102,8 @@ class block_course_tokens extends block_base
 
         // Add the information message below the block title
         $this->content->text .= html_writer::tag('p', 
-        'You can enroll yourself or somebody else from your available inventory of courses. Please click the ASSIGN button below.', 
-        ['class' => 'alert alert-info']
+            'You can enroll yourself or somebody else from your available inventory of courses. Please click the ASSIGN button below.', 
+            ['class' => 'alert alert-info']
         );
         // Output the data in the block
         $this->content->text .= html_writer::start_tag('table', array('class' => 'table table-striped table-hover table-bordered'));
@@ -128,8 +127,13 @@ class block_course_tokens extends block_base
             $this->content->text .= html_writer::start_tag('tr');
             $this->content->text .= html_writer::tag('td', format_string($course_name), ['class' => 'text-center col-2']);
 
-            // Available Inventory with an Assign Button
-            if ($counts['available'] > 0) {
+            // Filter available tokens for this course from the $tokens array
+            $available_tokens = array_filter($tokens, function($token) use ($counts) {
+                return $token->course_id == $counts['course_id'] && $token->user_enrolments_id === null;
+            });
+            $token = reset($available_tokens); // Get the first available token
+
+            if ($counts['available'] > 0 && $token) {
                 $assign_button = html_writer::tag('button', 'Assign', [
                     'class' => 'btn btn-success ml-2 btn-sm',
                     'data-toggle' => 'modal',
@@ -162,17 +166,7 @@ class block_course_tokens extends block_base
 
             $this->content->text .= html_writer::end_tag('tr');
 
-            // Fetch available tokens for the specific course ID
-            $sql = "SELECT t.code, c.fullname as course_name, t.course_id, t.id
-                    FROM {course_tokens} t
-                    JOIN {course} c ON t.course_id = c.id
-                    WHERE t.user_id = ? AND t.user_enrolments_id IS NULL AND t.course_id = ?";
-            $available_tokens = $DB->get_records_sql($sql, [$USER->id, $counts['course_id']]);
-
-            // Get the first available token (if exists)
-            $token = reset($available_tokens); // Get the first token in the list (if any)
-
-            // Check if a token is available for the course
+            // Generate modal if a token is available
             if ($token) {
                 // Generate the modal content with the available token
                 $this->content->text .= '
@@ -182,7 +176,7 @@ class block_course_tokens extends block_base
                             <div class="modal-header">
                                 <h5 class="modal-title" id="assignModalLabel' . $counts['course_id'] . '">Use token</h5>
                                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                    <span aria-hidden="true">&times;</span>
+                                    <span aria-hidden="true">×</span>
                                 </button>
                             </div>
                             <div class="modal-body">
@@ -200,12 +194,12 @@ class block_course_tokens extends block_base
                                         <input type="email" class="form-control" id="emailAddress' . $token->id . '" name="email" required>
                                     </div>
                                     <div class="form-group">
-                                        <label for="address<?php echo $token->id; ?>">Address</label>
-                                        <input type="text" class="form-control" id="address<?php echo $token->id; ?>" name="address" required>
+                                        <label for="address' . $token->id . '">Address</label>
+                                        <input type="text" class="form-control" id="address' . $token->id . '" name="address" required>
                                     </div>
                                     <div class="form-group">
-                                        <label for="phone<?php echo $token->id; ?>">Phone number</label>
-                                        <input type="tel" class="form-control" id="phone<?php echo $token->id; ?>" name="phone_number" required>
+                                        <label for="phone' . $token->id . '">Phone number</label>
+                                        <input type="tel" class="form-control" id="phone' . $token->id . '" name="phone_number" required>
                                     </div>
                                     <input type="hidden" name="token_code" value="' . $token->code . '">
                                 </form>
@@ -248,7 +242,7 @@ class block_course_tokens extends block_base
                     try {
                         var data = JSON.parse(text);
                     } catch (error) {
-                        alert("Unexpected response from server. Please contact at supprt@pacificmedicaltraining.com");
+                        alert("Unexpected response from server. Please contact at support@pacificmedicaltraining.com");
                         location.reload();
                         return;
                     }
