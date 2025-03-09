@@ -242,96 +242,85 @@ class block_course_tokens extends block_base
         // Add the form and AJAX functionality
         $this->content->text .= '
         <script>
-            function enrollMyself(tokenId) {
-                submitEnrollForm(tokenId, "myself");
-            }
+            const enrollMyself = (tokenId) => submitEnrollForm(tokenId, "myself");
 
-            function showEnrollForm(tokenId) {
-                // Hide initial options
-                var initialOptions = document.getElementById("initialOptions" + tokenId);
-                if (initialOptions) {
-                    initialOptions.classList.add("d-none");
+            const toggleElementVisibility = (elementId, hide = true) => {
+                const element = document.getElementById(elementId);
+                if (element) {
+                    element.classList.toggle("d-none", hide);
                 }
-                
-                // Hide initial footer
-                var initialFooter = document.getElementById("initialFooter" + tokenId);
-                if (initialFooter) {
-                    initialFooter.classList.add("d-none");
-                }
-                
-                // Show form groups by their specific IDs
-                const formGroups = [
-                    "firstNameGroup" + tokenId,
-                    "lastNameGroup" + tokenId,
-                    "emailGroup" + tokenId,
-                    "addressGroup" + tokenId,
-                    "phoneGroup" + tokenId
-                ];
-                
-                formGroups.forEach(groupId => {
-                    var group = document.getElementById(groupId);
-                    if (group) {
-                        group.classList.remove("d-none");
-                    }
-                });
-                
-                // Show the footer with enroll and cancel buttons
-                var enrollFooter = document.getElementById("enrollFormFooter" + tokenId);
-                if (enrollFooter) {
-                    enrollFooter.classList.remove("d-none");
-                }
-            }
-            
-            function cancelEnrollForm(tokenId) {
-                var initialOptions = document.getElementById("initialOptions" + tokenId);
-                if (initialOptions) initialOptions.classList.remove("d-none");
-                
-                var initialFooter = document.getElementById("initialFooter" + tokenId);
-                if (initialFooter) initialFooter.classList.remove("d-none");
-                
-                const formGroups = [
-                    "firstNameGroup" + tokenId,
-                    "lastNameGroup" + tokenId,
-                    "emailGroup" + tokenId,
-                    "addressGroup" + tokenId,
-                    "phoneGroup" + tokenId
-                ];
-                
-                formGroups.forEach(groupId => {
-                    var group = document.getElementById(groupId);
-                    if (group) group.classList.add("d-none");
-                });
-                
-                var enrollFooter = document.getElementById("enrollFormFooter" + tokenId);
-                if (enrollFooter) enrollFooter.classList.add("d-none");
-            }
+            };
 
-            // Rest of your JavaScript (submitEnrollForm function) remains the same
-            function submitEnrollForm(tokenId, type) {
-                var formId = type === "myself" ? "enrollMyselfForm" + tokenId : "enrollForm" + tokenId;
-                var form = document.getElementById(formId);
+            const showEnrollForm = (tokenId) => {
+                // Hide initial elements
+                toggleElementVisibility(`initialOptions${tokenId}`);
+                toggleElementVisibility(`initialFooter${tokenId}`);
+                
+                // Form group IDs
+                const formGroupIds = [
+                    "firstNameGroup",
+                    "lastNameGroup",
+                    "emailGroup",
+                    "addressGroup",
+                    "phoneGroup"
+                ].map(prefix => `${prefix}${tokenId}`);
+                
+                // Show form groups
+                formGroupIds.forEach(groupId => toggleElementVisibility(groupId, false));
+                
+                // Show enroll footer
+                toggleElementVisibility(`enrollFormFooter${tokenId}`, false);
+            };
+
+            const cancelEnrollForm = (tokenId) => {
+                // Show initial elements
+                toggleElementVisibility(`initialOptions${tokenId}`, false);
+                toggleElementVisibility(`initialFooter${tokenId}`, false);
+                
+                // Form group IDs
+                const formGroupIds = [
+                    "firstNameGroup",
+                    "lastNameGroup",
+                    "emailGroup",
+                    "addressGroup",
+                    "phoneGroup"
+                ].map(prefix => `${prefix}${tokenId}`);
+                
+                // Hide form groups
+                formGroupIds.forEach(groupId => toggleElementVisibility(groupId));
+                
+                // Hide enroll footer
+                toggleElementVisibility(`enrollFormFooter${tokenId}`);
+            };
+
+            const submitEnrollForm = async (tokenId, type) => {
+                const formId = type === "myself" ? `enrollMyselfForm${tokenId}` : `enrollForm${tokenId}`;
+                const form = document.getElementById(formId);
                 
                 if (type === "other" && !form.checkValidity()) {
                     alert("Please fill out all required fields.");
                     return;
                 }
                 
-                var formData = new FormData(form);
+                const formData = new FormData(form);
                 
-                fetch("/enrol/course_tokens/use_token.php", {
-                    method: "POST",
-                    body: formData
-                })
-                .then(response => response.text())
-                .then(text => {
+                try {
+                    const response = await fetch("/enrol/course_tokens/use_token.php", {
+                        method: "POST",
+                        body: formData
+                    });
+                    
+                    const text = await response.text();
+                    let data;
+                    
                     try {
-                        var data = JSON.parse(text);
+                        data = JSON.parse(text);
                     } catch (error) {
                         alert("Unexpected response from server. Please contact at support@pacificmedicaltraining.com");
                         location.reload();
                         return;
                     }
-
+                    
                     if (data.status === "error" && data.message) {
                         alert(data.message);
                         location.reload();
@@ -342,12 +331,11 @@ class block_course_tokens extends block_base
                         alert("Enrollment successful!");
                         location.reload();
                     }
-                })
-                .catch(error => {
+                } catch (error) {
                     alert("An error occurred while processing the enrollment.");
                     location.reload();
-                });
-            }
+                }
+            };
         </script>';
 
         return $this->content;
