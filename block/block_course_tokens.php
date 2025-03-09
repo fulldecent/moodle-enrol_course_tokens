@@ -174,39 +174,56 @@ class block_course_tokens extends block_base
                     <div class="modal-dialog" role="document">
                         <div class="modal-content">
                             <div class="modal-header">
-                                <h5 class="modal-title" id="assignModalLabel' . $counts['course_id'] . '">Use token</h5>
+                                <h5 class="modal-title" id="assignModalLabel' . $counts['course_id'] . '">Use token for ' . ucwords(strtolower($token->course_name)) . '</h5>
                                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                                     <span aria-hidden="true">×</span>
                                 </button>
                             </div>
                             <div class="modal-body">
+                                <div id="initialOptions' . $token->id . '">
+                                    <div class="d-flex justify-content-between">
+                                        <button type="button" class="btn btn-primary" onclick="enrollMyself(' . $token->id . ')">Enroll Yourself</button>
+                                        <button type="button" class="btn btn-success" onclick="showEnrollForm(' . $token->id . ')">Enroll Somebody Else</button>
+                                    </div>
+                                </div>
+                                <!-- Form for enrolling somebody else -->
                                 <form id="enrollForm' . $token->id . '" action="/enrol/course_tokens/use_token.php" method="POST">
-                                    <div class="form-group">
+                                    <div id="firstNameGroup' . $token->id . '" class="form-group d-none">
                                         <label for="firstName' . $token->id . '">First name</label>
                                         <input type="text" class="form-control" id="firstName' . $token->id . '" name="first_name" required>
                                     </div>
-                                    <div class="form-group">
+                                    <div id="lastNameGroup' . $token->id . '" class="form-group d-none">
                                         <label for="lastName' . $token->id . '">Last name</label>
                                         <input type="text" class="form-control" id="lastName' . $token->id . '" name="last_name" required>
                                     </div>
-                                    <div class="form-group">
+                                    <div id="emailGroup' . $token->id . '" class="form-group d-none">
                                         <label for="emailAddress' . $token->id . '">Email address</label>
                                         <input type="email" class="form-control" id="emailAddress' . $token->id . '" name="email" required>
                                     </div>
-                                    <div class="form-group">
+                                    <div id="addressGroup' . $token->id . '" class="form-group d-none">
                                         <label for="address' . $token->id . '">Address</label>
                                         <input type="text" class="form-control" id="address' . $token->id . '" name="address" required>
                                     </div>
-                                    <div class="form-group">
+                                    <div id="phoneGroup' . $token->id . '" class="form-group d-none">
                                         <label for="phone' . $token->id . '">Phone number</label>
                                         <input type="tel" class="form-control" id="phone' . $token->id . '" name="phone_number" required>
                                     </div>
                                     <input type="hidden" name="token_code" value="' . $token->code . '">
                                 </form>
+                                
+                                <!-- Hidden form for enrolling myself -->
+                                <form id="enrollMyselfForm' . $token->id . '" class="d-none">
+                                    <input type="hidden" name="token_code" value="' . $token->code . '">
+                                </form>
                             </div>
                             <div class="modal-footer">
-                                <button type="button" class="btn btn-success" onclick="submitEnrollForm(' . $token->id . ')">Use Token for ' . ucwords(strtolower($token->course_name)) . '</button>
-                                <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                <div id="initialFooter' . $token->id . '">
+                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                </div>
+                                <div id="enrollFormFooter' . $token->id . '" class="d-none">
+                                    <button type="button" class="btn btn-success" onclick="submitEnrollForm(' . $token->id . ', \'other\')">Enroll</button>
+                                    <button type="button" class="btn btn-secondary" onclick="cancelEnrollForm(' . $token->id . ')">Cancel</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -225,28 +242,85 @@ class block_course_tokens extends block_base
         // Add the form and AJAX functionality
         $this->content->text .= '
         <script>
-            function submitEnrollForm(tokenId) {
-                var form = document.getElementById("enrollForm" + tokenId);
-                if (!form.checkValidity()) {
+            const enrollMyself = (tokenId) => submitEnrollForm(tokenId, "myself");
+
+            const toggleElementVisibility = (elementId, hide = true) => {
+                const element = document.getElementById(elementId);
+                if (element) {
+                    element.classList.toggle("d-none", hide);
+                }
+            };
+
+            const showEnrollForm = (tokenId) => {
+                // Hide initial elements
+                toggleElementVisibility(`initialOptions${tokenId}`);
+                toggleElementVisibility(`initialFooter${tokenId}`);
+                
+                // Form group IDs
+                const formGroupIds = [
+                    "firstNameGroup",
+                    "lastNameGroup",
+                    "emailGroup",
+                    "addressGroup",
+                    "phoneGroup"
+                ].map(prefix => `${prefix}${tokenId}`);
+                
+                // Show form groups
+                formGroupIds.forEach(groupId => toggleElementVisibility(groupId, false));
+                
+                // Show enroll footer
+                toggleElementVisibility(`enrollFormFooter${tokenId}`, false);
+            };
+
+            const cancelEnrollForm = (tokenId) => {
+                // Show initial elements
+                toggleElementVisibility(`initialOptions${tokenId}`, false);
+                toggleElementVisibility(`initialFooter${tokenId}`, false);
+                
+                // Form group IDs
+                const formGroupIds = [
+                    "firstNameGroup",
+                    "lastNameGroup",
+                    "emailGroup",
+                    "addressGroup",
+                    "phoneGroup"
+                ].map(prefix => `${prefix}${tokenId}`);
+                
+                // Hide form groups
+                formGroupIds.forEach(groupId => toggleElementVisibility(groupId));
+                
+                // Hide enroll footer
+                toggleElementVisibility(`enrollFormFooter${tokenId}`);
+            };
+
+            const submitEnrollForm = async (tokenId, type) => {
+                const formId = type === "myself" ? `enrollMyselfForm${tokenId}` : `enrollForm${tokenId}`;
+                const form = document.getElementById(formId);
+                
+                if (type === "other" && !form.checkValidity()) {
                     alert("Please fill out all required fields.");
                     return;
                 }
-                var formData = new FormData(form);
-
-                fetch("/enrol/course_tokens/use_token.php", {
-                    method: "POST",
-                    body: formData
-                })
-                .then(response => response.text())
-                .then(text => {
+                
+                const formData = new FormData(form);
+                
+                try {
+                    const response = await fetch("/enrol/course_tokens/use_token.php", {
+                        method: "POST",
+                        body: formData
+                    });
+                    
+                    const text = await response.text();
+                    let data;
+                    
                     try {
-                        var data = JSON.parse(text);
+                        data = JSON.parse(text);
                     } catch (error) {
                         alert("Unexpected response from server. Please contact at support@pacificmedicaltraining.com");
                         location.reload();
                         return;
                     }
-
+                    
                     if (data.status === "error" && data.message) {
                         alert(data.message);
                         location.reload();
@@ -257,12 +331,11 @@ class block_course_tokens extends block_base
                         alert("Enrollment successful!");
                         location.reload();
                     }
-                })
-                .catch(error => {
+                } catch (error) {
                     alert("An error occurred while processing the enrollment.");
                     location.reload();
-                });
-            }
+                }
+            };
         </script>';
 
         return $this->content;
