@@ -202,11 +202,11 @@ class block_course_tokens extends block_base
                                     </div>
                                     <div id="addressGroup' . $token->id . '" class="form-group d-none">
                                         <label for="address' . $token->id . '">Address</label>
-                                        <input type="text" class="form-control" id="address' . $token->id . '" name="address" required>
+                                        <input type="text" class="form-control" id="address' . $token->id . '" name="address">
                                     </div>
                                     <div id="phoneGroup' . $token->id . '" class="form-group d-none">
                                         <label for="phone' . $token->id . '">Phone number</label>
-                                        <input type="tel" class="form-control" id="phone' . $token->id . '" name="phone_number" required>
+                                        <input type="tel" class="form-control" id="phone' . $token->id . '" name="phone_number">
                                     </div>
                                     <input type="hidden" name="token_code" value="' . $token->code . '">
                                 </form>
