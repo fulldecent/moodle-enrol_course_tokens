@@ -192,11 +192,11 @@ if (!empty($tokens)) {
                                 </div>
                                 <div class="form-group">
                                     <label for="address<?php echo $token->id; ?>">Address</label>
-                                    <input type="text" class="form-control" id="address<?php echo $token->id; ?>" name="address" required>
+                                    <input type="text" class="form-control" id="address<?php echo $token->id; ?>" name="address">
                                 </div>
                                 <div class="form-group">
                                     <label for="phone<?php echo $token->id; ?>">Phone number</label>
-                                    <input type="tel" class="form-control" id="phone<?php echo $token->id; ?>" name="phone_number" required>
+                                    <input type="tel" class="form-control" id="phone<?php echo $token->id; ?>" name="phone_number">
                                 </div>
                                 <input type="hidden" name="token_code" value="' . $token->code . '">
                             </form>
