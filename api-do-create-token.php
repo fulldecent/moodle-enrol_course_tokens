@@ -59,6 +59,15 @@ $group_account = isset($data['group_account']) ? trim($data['group_account']) : 
 $firstname = trim($data['firstname']);
 $lastname = trim($data['lastname']);
 
+// Extract order number from extra JSON
+$order_number = null;
+if (!empty($extra_json)) {
+    $extra_data = json_decode($extra_json, true); // Decode as associative array
+    if (json_last_error() === JSON_ERROR_NONE && isset($extra_data['order_number'])) {
+        $order_number = (int) $extra_data['order_number']; // Extract and ensure it's an integer
+    }
+}
+
 // Validate course ID
 $course = $DB->get_record('course', ['id' => $course_id]);
 if (empty($course)) {
@@ -83,7 +92,24 @@ if ($quantity < 1) {
 
 // Check if the user exists or create a new user
 $user = $DB->get_record('user', ['email' => $email, 'deleted' => 0, 'suspended' => 0]);
+
+// Function to generate a secure password in the format ###-###-###-###
+function generate_hex_password() {
+    return sprintf('%s-%s-%s-%s',
+        substr(bin2hex(random_bytes(2)), 0, 3),
+        substr(bin2hex(random_bytes(2)), 0, 3),
+        substr(bin2hex(random_bytes(2)), 0, 3),
+        substr(bin2hex(random_bytes(2)), 0, 3)
+    );
+}
+
 if (empty($user)) {
+    global $DB, $CFG, $USER;
+
+    // Generate the password
+    $plaintext_password = generate_hex_password();
+
+    // Create new user if not found, using the first name and last name passed from the form
     $new_user = new stdClass();
     $new_user->auth = 'manual';
     $new_user->confirmed = 1;
@@ -92,6 +118,7 @@ if (empty($user)) {
     do {
         $username = strtolower(explode('@', $email)[0]) . rand(1000, 9999);
     } while ($DB->record_exists('user', ['username' => $username]));
+    $new_user->password = hash_internal_user_password($plaintext_password); // Hash the password for Moodle storage
     $new_user->username = $username;
     $new_user->password = hash_internal_user_password('changeme');
     $new_user->email = $email;
@@ -99,8 +126,8 @@ if (empty($user)) {
     $new_user->lastname = $lastname;
     $new_user->timecreated = time();
     $new_user->timemodified = time();
-    $new_user->forcepasswordchange = 1;
 
+    // Insert new user record
     $new_user->id = $DB->insert_record('user', $new_user);
     $user = $new_user;
 
@@ -111,10 +138,10 @@ if (empty($user)) {
     Your new account has been created at Pacific Medical Training. 
     Here are your login details:
 
-    Username: {$user->username}
-    Password: changeme  (You will be prompted to change this on first login)
+    Email: {$user->email}
+    Password: {$plaintext_password}
 
-    Please login at https://learn.pacificmedicaltraining.com/login/index.php.
+    Please login at https://learn.pacificmedicaltraining.com/login/
 
     Thank you.
     ";
@@ -126,7 +153,7 @@ if (empty($user)) {
     $sender = new stdClass();
     $sender->firstname = "PMT";
     $sender->lastname = "Instructor";
-    $sender->email = $USER->email; // Use the current user's email as the "from" email
+    $sender->email = "support@pacificmedicaltraining.com";
 
     // Send the email
     email_to_user($user, $sender, $subject, $message1);
@@ -168,6 +195,10 @@ $message2 = "
 
     You have received {$quantity} {$token_word} for the course {$course->fullname}. 
     You can view your tokens at: {$token_url}.
+
+    Order Number: #{$order_number}.
+
+    Please login at https://learn.pacificmedicaltraining.com/login/
     
     Thank you.
 ";
@@ -179,7 +210,7 @@ $subject = "Your course {$token_word} from Pacific Medical Training";
 $sender = new stdClass();
 $sender->firstname = "PMT";
 $sender->lastname = "Instructor";
-$sender->email = $USER->email; // Use the current user's email as the "from" email
+$sender->email = "support@pacificmedicaltraining.com";
 
 // Send the email
 email_to_user($user, $sender, $subject, $message2);
