@@ -141,7 +141,13 @@ if (empty($user)) {
     Email: {$user->email}
     Password: {$plaintext_password}
 
-    Please login at https://learn.pacificmedicaltraining.com/login/
+    You have the option to access your dashboard in one of two ways:
+        1. Use your email address and password to log in.
+        2. Click the \"Send Magic Link\" button. Check your email for the link to log in. This option does not require a password.
+
+    Please login at https://learn.pacificmedicaltraining.com/pmt-login
+
+    If you have any concerns, please don't hesitate to contact us at support@pacificmedicaltraining.com
 
     Thank you.
     ";
@@ -198,7 +204,7 @@ $message2 = "
 
     Order Number: #{$order_number}.
 
-    Please login at https://learn.pacificmedicaltraining.com/login/
+    Please login at https://learn.pacificmedicaltraining.com/pmt-login
     
     Thank you.
 ";
