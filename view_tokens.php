@@ -218,29 +218,50 @@ if (!empty($tokens)) {
                 SELECT ci.id, ci.code, ci.customcertid, ci.userid
                 FROM {customcert_issues} ci
                 JOIN {customcert} c ON ci.customcertid = c.id
-                WHERE ci.userid = :userid AND c.course = :courseid AND (c.name = 'Completion eCard' OR c.name = 'Cognitive eCard')
-                ORDER BY ci.id DESC
+                WHERE ci.userid = :userid 
+                    AND c.course = :courseid 
+                    AND (c.name = 'Completion eCard' OR c.name = 'Cognitive eCard')
+                ORDER BY 
+                    CASE 
+                        WHEN c.name = 'Completion eCard' THEN 1 
+                        WHEN c.name = 'Cognitive eCard' THEN 2 
+                        ELSE 3 
+                    END,
+                    ci.id DESC
                 LIMIT 1",
                 ['userid' => $user_id, 'courseid' => $token->course_id]
             );
-        
+
             if ($certificate && !empty($certificate->code)) {
-                // Generate the verification URL using the 'code' field
-                $certificate_url = new moodle_url('/mod/customcert/verify_certificate.php', ['code' => $certificate->code]);
-        
-                // Convert to string and ensure & is used instead of &amp;
-                $url_string = str_replace('&amp;', '&', $certificate_url->out());
-        
+                // Generate a high-entropy token
+                $token = bin2hex(random_bytes(32)); // 64 characters of high entropy
+                $timestamp = time();
+                
+                // Store token and metadata in session
+                $SESSION->cert_tokens = $SESSION->cert_tokens ?? [];
+                $SESSION->cert_tokens[$token] = [
+                    'ecardcode' => $certificate->code,
+                    'timestamp' => $timestamp
+                ];
+
+                // Generate the verification URL with the temporary token
+                $certificate_url = new moodle_url('/mod/customcert/view_user_cert.php', [
+                    'token' => $token
+                ]);
+
+                // Convert to string and ensure & is used instead of &
+                $url_string = str_replace('&', '&', $certificate_url->out());
+
                 // Create the eCard button
                 $ecard_button = html_writer::tag('a', 'View eCard', [
-                    'href' => $url_string,  // Use the modified URL string
+                    'href' => $url_string,
                     'class' => 'btn btn-success',
                     'target' => '_blank'
                 ]);
             } else {
                 $ecard_button = html_writer::tag('span', 'No eCard available', ['class' => 'text-muted']);
             }
-        
+
             echo html_writer::tag('td', $ecard_button);
             echo html_writer::end_tag('tr');
         }                       
