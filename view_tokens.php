@@ -214,6 +214,7 @@ if (!empty($tokens)) {
         }
         if ($user_id) {
             // Get the latest certificate (eCard) issue for this user in this course
+            // TODO: Do not assume that customcert_issues is available, so that this plugin works if modcustomcert is not installed 
             $certificate = $DB->get_record_sql("
                 SELECT ci.id, ci.code, ci.customcertid, ci.userid
                 FROM {customcert_issues} ci

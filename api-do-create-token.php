@@ -120,7 +120,6 @@ if (empty($user)) {
     } while ($DB->record_exists('user', ['username' => $username]));
     $new_user->password = hash_internal_user_password($plaintext_password); // Hash the password for Moodle storage
     $new_user->username = $username;
-    $new_user->password = hash_internal_user_password('changeme');
     $new_user->email = $email;
     $new_user->firstname = $firstname;
     $new_user->lastname = $lastname;
