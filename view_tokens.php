@@ -1,5 +1,7 @@
 <?php
 require_once('../../config.php');
+// Required for generating public URL for certificates
+require_once($CFG->dirroot . '/mod/customcert/lib.php');
 global $DB, $USER, $PAGE, $OUTPUT;
 
 // Ensure the user is logged in
@@ -213,33 +215,37 @@ if (!empty($tokens)) {
             echo html_writer::tag('td', '-');
         }
         if ($user_id) {
-            // Get the latest certificate (eCard) issue for this user in this course
-            // TODO: Do not assume that customcert_issues is available, so that this plugin works if modcustomcert is not installed 
-            $certificate = $DB->get_record_sql("
-                SELECT ci.id, ci.code, ci.customcertid, ci.userid
-                FROM {customcert_issues} ci
-                JOIN {customcert} c ON ci.customcertid = c.id
-                WHERE ci.userid = :userid AND c.course = :courseid AND (c.name = 'Completion eCard' OR c.name = 'Cognitive eCard')
-                ORDER BY ci.id DESC
-                LIMIT 1",
-                ['userid' => $user_id, 'courseid' => $token->course_id]
-            );
+            // Check if mod_customcert is installed before querying
+            if ($DB->get_manager()->table_exists('customcert_issues')) {
+                // Get the latest certificate (eCard) issue for this user in this course
+                $certificate = $DB->get_record_sql("
+                    SELECT ci.id, ci.code, ci.customcertid, ci.userid
+                    FROM {customcert_issues} ci
+                    JOIN {customcert} c ON ci.customcertid = c.id
+                    WHERE ci.userid = :userid 
+                        AND c.course = :courseid 
+                        AND (c.name = 'Completion eCard' OR c.name = 'Cognitive eCard')
+                    ORDER BY ci.id DESC
+                    LIMIT 1",
+                    ['userid' => $user_id, 'courseid' => $token->course_id]
+                );
         
-            if ($certificate && !empty($certificate->code)) {
-                // Generate the verification URL using the 'code' field
-                $certificate_url = new moodle_url('/mod/customcert/verify_certificate.php', ['code' => $certificate->code]);
-        
-                // Convert to string and ensure & is used instead of &amp;
-                $url_string = str_replace('&amp;', '&', $certificate_url->out());
-        
-                // Create the eCard button
-                $ecard_button = html_writer::tag('a', 'View eCard', [
-                    'href' => $url_string,  // Use the modified URL string
-                    'class' => 'btn btn-success',
-                    'target' => '_blank'
-                ]);
+                if ($certificate && !empty($certificate->code) && function_exists('generate_public_url_for_certificate')) {
+                    // Generate the public eCard URL
+                    $public_url = generate_public_url_for_certificate($certificate->code);
+                
+                    // Create the eCard button
+                    $ecard_button = html_writer::tag('a', 'View eCard', [
+                        'href' => $public_url,
+                        'class' => 'btn btn-success',
+                        'target' => '_blank'
+                    ]);
+                } else {
+                    // If the certificate is missing, or the function doesn't exist, display a placeholder
+                    $ecard_button = html_writer::tag('span', 'No eCard available', ['class' => 'text-muted']);
+                }
             } else {
-                $ecard_button = html_writer::tag('span', 'No eCard available', ['class' => 'text-muted']);
+                $ecard_button = html_writer::tag('span', 'eCard feature not available', ['class' => 'text-warning']);
             }
         
             echo html_writer::tag('td', $ecard_button);
