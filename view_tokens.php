@@ -55,6 +55,7 @@ if (!empty($tokens)) {
     echo html_writer::tag('th', 'Enroll myself');
     echo html_writer::tag('th', 'Enroll somebody else');
     echo html_writer::tag('th', 'eCard');
+    echo html_writer::tag('th', 'Forward eCard');
     echo html_writer::end_tag('tr');
     echo html_writer::end_tag('thead');
     echo html_writer::start_tag('tbody');
@@ -253,17 +254,46 @@ if (!empty($tokens)) {
                         'class' => 'btn btn-success',
                         'target' => '_blank'
                     ]);
+        
+                    // Get course name
+                    $course_name = $course ? $course->fullname : 'Course';
+
+                    // Get user's first and last name
+                    $user_fulldetails = $DB->get_record('user', ['id' => $user_id], 'firstname, lastname');
+                    $first_name = $user_fulldetails ? $user_fulldetails->firstname : '';
+                    $last_name = $user_fulldetails ? $user_fulldetails->lastname : '';
+
+                    // Construct the subject line
+                    $subject = rawurlencode("Check out " . $first_name . " " . $last_name . "'s eCard for " . $course_name);
+
+                    // Construct the body with the actual link (not embedded as text)
+                    // The email client will render this as a clickable link
+                    $body = rawurlencode("eCard of " . $first_name . " " . $last_name . " for the course " . $course_name . " is available at:\n\n" . $public_url);
+
+                    // Generate the mailto link
+                    $mailto_link = 'mailto:?subject=' . $subject . '&body=' . $body;
+
+                    // Create the "Forward eCard" button
+                    $forward_button = html_writer::tag('a', 'Forward eCard', [
+                        'href' => $mailto_link,
+                        'class' => 'btn btn-primary',
+                        'target' => '_blank'
+                    ]);
                 } else {
                     // If the certificate is missing, or the function doesn't exist, display a placeholder
                     $ecard_button = html_writer::tag('span', 'No eCard available', ['class' => 'text-muted']);
+                    $forward_button = html_writer::tag('span', 'No eCard available', ['class' => 'text-muted']);
                 }
             } else {
                 $ecard_button = html_writer::tag('span', 'eCard feature not available', ['class' => 'text-warning']);
+                $forward_button = html_writer::tag('span', 'eCard feature not available', ['class' => 'text-warning']);
             }
         
+            // Output the buttons in separate columns
             echo html_writer::tag('td', $ecard_button);
+            echo html_writer::tag('td', $forward_button);
             echo html_writer::end_tag('tr');
-        }                       
+        }                                               
         echo html_writer::end_tag('tr');
     }
 
