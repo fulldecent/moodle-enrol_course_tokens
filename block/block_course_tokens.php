@@ -100,11 +100,26 @@ class block_course_tokens extends block_base
         }
         ');
 
-        // Add the information message below the block title
-        $this->content->text .= html_writer::tag('p', 
-            'You can enroll yourself or somebody else from your available inventory of courses. Please click the ASSIGN button below.', 
-            ['class' => 'alert alert-info']
-        );
+        // Initial alert message
+        $alert_message = 'You can enroll yourself or somebody else from your available inventory of courses. Please click the ASSIGN button below.';
+
+        // Check if there are any available tokens
+        $has_available_tokens = false;
+        foreach ($course_data as $counts) {
+            if ($counts['available'] > 0) {
+                $has_available_tokens = true;
+                break;
+            }
+        }
+
+        // Append expiration notice if there are available tokens
+        if ($has_available_tokens) {
+            $alert_message .= ' Unused course tokens expire 180 days after order.';
+        }
+
+        // Add the combined alert to the block content
+        $this->content->text .= html_writer::tag('p', $alert_message, ['class' => 'alert alert-info']);
+
         // Output the data in the block
         $this->content->text .= html_writer::start_tag('table', array('class' => 'table table-striped table-hover table-bordered'));
 

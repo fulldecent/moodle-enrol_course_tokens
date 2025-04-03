@@ -30,6 +30,19 @@ $tokens = $DB->get_records_sql($sql, [$USER->id]);
 echo $OUTPUT->header();
 
 if (!empty($tokens)) {
+    // Check if there is any "Available" token
+    $has_available_token = false;
+    foreach ($tokens as $token) {
+        if (empty($token->used_on)) {
+            $has_available_token = true;
+            break;
+        }
+    }
+
+    // Display alert if there is an available token
+    if ($has_available_token) {
+        echo html_writer::tag('div', 'Unused course tokens expire 180 days after order.', array('class' => 'alert alert-info'));
+    }
     // Start a Bootstrap-styled table
     echo html_writer::start_tag('table', array('class' => 'table table-striped table-hover'));
     echo html_writer::start_tag('thead');
