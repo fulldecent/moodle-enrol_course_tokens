@@ -22,34 +22,38 @@ $params = [$token_code, $USER->id];
 $token = $DB->get_record_sql($sql, $params);
 
 if (!$token) {
-    echo $OUTPUT->header();
-    echo $OUTPUT->notification('Invalid token or token not associated with your account.', 'error');
-    echo $OUTPUT->footer();
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Invalid token or token not associated with your account.'
+    ]);
     exit();
 }
 
 // Prevent use of voided tokens
 if (!empty($token->voided)) {
-    echo $OUTPUT->header();
-    echo $OUTPUT->notification('This token has been voided and cannot be used.', 'error');
-    echo $OUTPUT->footer();
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'This token has been voided and cannot be used.'
+    ]);
     exit();
 }
 
 // Check if the token has already been used
 if (!empty($token->user_enrolments_id)) {
-    echo $OUTPUT->header();
-    echo $OUTPUT->notification('This token has already been used.', 'error');
-    echo $OUTPUT->footer();
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'This token has already been used.'
+    ]);
     exit();
 }
 
 // Enroll the user in the course
 $course = $DB->get_record('course', ['id' => $token->course_id]);
 if (!$course) {
-    echo $OUTPUT->header();
-    echo $OUTPUT->notification('Course not found.', 'error');
-    echo $OUTPUT->footer();
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Course not found.'
+    ]);
     exit();
 }
 
@@ -68,9 +72,10 @@ foreach ($enrolinstances as $instance) {
 
 // Check if the course supports the course_tokens enrolment method
 if (!$enrolinstance) {
-    echo $OUTPUT->header();
-    echo $OUTPUT->notification('Course token enrolment method not enabled for this course.', 'error');
-    echo $OUTPUT->footer();
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Course token enrolment method not enabled for this course.'
+    ]);
     exit();
 }
 
