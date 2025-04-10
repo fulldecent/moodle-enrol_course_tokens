@@ -90,8 +90,15 @@ if ($quantity < 1) {
     exit;
 }
 
-// Check if the user exists or create a new user
-$user = $DB->get_record('user', ['email' => $email, 'deleted' => 0, 'suspended' => 0]);
+// Check if the user exists, even if suspended
+$user = $DB->get_record('user', ['email' => $email, 'deleted' => 0]);
+
+if ($user && $user->suspended) {
+    // Unsuspend the user
+    $user->suspended = 0;
+    $user->timemodified = time();
+    $DB->update_record('user', $user);
+}
 
 // Function to generate a secure password in the format ###-###-###-###
 function generate_hex_password() {

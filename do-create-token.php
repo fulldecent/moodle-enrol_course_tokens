@@ -46,8 +46,22 @@ if ($quantity < 1) {
     redirect(new moodle_url('/enrol/course_tokens/index.php'), get_string('errorquantity', 'enrol_course_tokens'), null, \core\output\notification::NOTIFY_ERROR);
 }
 
-// Check if the user exists or create a new user
-$user = $DB->get_record('user', array('email' => $email, 'deleted' => 0, 'suspended' => 0));
+// Check if a user exists with the given email, even if suspended
+$user = $DB->get_record('user', ['email' => $email, 'deleted' => 0]);
+
+// If user exists and is suspended, reactivate the account
+if ($existing_user && $existing_user->suspended) {
+    // Unsuspend the user
+    $existing_user->suspended = 0;
+    $existing_user->timemodified = time();
+    $DB->update_record('user', $existing_user);
+    
+    // Log the reactivation
+    \core\notification::add('User account has been reactivated.', \core\output\notification::NOTIFY_SUCCESS);
+}
+
+// Use the user record (now guaranteed to be active if it exists)
+$user = $existing_user ?: null;
 
 // Function to generate a secure password in the format ###-###-###-###
 function generate_hex_password() {
