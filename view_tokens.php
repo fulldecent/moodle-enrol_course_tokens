@@ -2,6 +2,7 @@
 require_once('../../config.php');
 // Required for generating public URL for certificates
 require_once($CFG->dirroot . '/mod/customcert/lib.php');
+require_once($CFG->dirroot . '/local/mts_hacks/lib.php');
 global $DB, $USER, $PAGE, $OUTPUT;
 
 // Ensure the user is logged in
@@ -229,70 +230,223 @@ if (!empty($tokens)) {
             echo html_writer::tag('td', '-');
         }
         if ($user_id) {
-            // Check if mod_customcert is installed before querying
-            if ($DB->get_manager()->table_exists('customcert_issues')) {
-                // Get the latest certificate (eCard) issue for this user in this course
-                $certificate = $DB->get_record_sql("
-                    SELECT ci.id, ci.code, ci.customcertid, ci.userid
-                    FROM {customcert_issues} ci
-                    JOIN {customcert} c ON ci.customcertid = c.id
-                    WHERE ci.userid = :userid 
-                        AND c.course = :courseid 
-                        AND (c.name = 'Completion eCard' OR c.name = 'Cognitive eCard')
-                    ORDER BY ci.id DESC
-                    LIMIT 1",
-                    ['userid' => $user_id, 'courseid' => $token->course_id]
-                );
-        
-                if ($certificate && !empty($certificate->code) && function_exists('generate_public_url_for_certificate')) {
-                    // Generate the public eCard URL
-                    $public_url = generate_public_url_for_certificate($certificate->code);
+            // Get course name
+            $course_name = $course ? $course->fullname : 'Course';
+            $ecard_button = null;
+            $forward_button = null;
+            $public_url = null;
+            
+            // Check if course name starts with "AHA" for special handling
+            if ($course && strpos($course_name, 'AHA') === 0) {
+                // Special handling for AHA courses - check for specific assignment submissions
                 
-                    // Create the eCard button
-                    $ecard_button = html_writer::tag('a', 'View eCard', [
-                        'href' => $public_url,
-                        'class' => 'btn btn-success',
-                        'target' => '_blank'
-                    ]);
-        
-                    // Get course name
-                    $course_name = $course ? $course->fullname : 'Course';
-
-                    // Get user's first and last name
-                    $user_fulldetails = $DB->get_record('user', ['id' => $user_id], 'firstname, lastname');
-                    $first_name = $user_fulldetails ? $user_fulldetails->firstname : '';
-                    $last_name = $user_fulldetails ? $user_fulldetails->lastname : '';
-
-                    // Construct the subject line
-                    $subject = rawurlencode("Check out " . $first_name . " " . $last_name . "'s eCard for " . $course_name);
-
-                    // Construct the body with the actual link (not embedded as text)
-                    // The email client will render this as a clickable link
-                    $body = rawurlencode("eCard of " . $first_name . " " . $last_name . " for the course " . $course_name . " is available at:\n\n" . $public_url);
-
-                    // Generate the mailto link
-                    $mailto_link = 'mailto:?subject=' . $subject . '&body=' . $body;
-
-                    // Create the "Forward eCard" button
-                    $forward_button = html_writer::tag('a', 'Forward eCard', [
-                        'href' => $mailto_link,
-                        'class' => 'btn btn-primary',
-                        'target' => '_blank'
-                    ]);
+                // Get all assignment instances in the course
+                $assignments = $DB->get_records('assign', ['course' => $token->course_id]);
+                $file_found = false;
+                $file_id = null;
+                $submission_id = null;
+                
+                // First priority: Check for "Upload AHA provider eCard" submissions
+                foreach ($assignments as $assignment) {
+                    if ($assignment->name === 'Upload AHA provider eCard') {
+                        // Get the submission for this assignment
+                        $submission = $DB->get_record('assign_submission', [
+                            'assignment' => $assignment->id,
+                            'userid' => $user_id,
+                            'status' => 'submitted'
+                        ]);
+                        
+                        if ($submission) {
+                            // Check if there are files attached to this submission
+                            $file_submission = $DB->get_record('assignsubmission_file', ['submission' => $submission->id]);
+                            
+                            if ($file_submission && $file_submission->numfiles > 0) {
+                                // Get the context of this assignment
+                                $cm = get_coursemodule_from_instance('assign', $assignment->id, $assignment->course);
+                                $context = context_module::instance($cm->id);
+                                
+                                // Get the files from this submission
+                                $fs = get_file_storage();
+                                $files = $fs->get_area_files(
+                                    $context->id,
+                                    'assignsubmission_file',
+                                    'submission_files',
+                                    $submission->id,
+                                    'filename',
+                                    false
+                                );
+                                
+                                if (!empty($files)) {
+                                    // Get the first file
+                                    $file = reset($files);
+                                    $file_id = $file->get_id();
+                                    $submission_id = $submission->id;
+                                    $file_found = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Second priority: If no "Upload AHA provider eCard" file found, check for "Upload AHA online part 1"
+                if (!$file_found) {
+                    foreach ($assignments as $assignment) {
+                        if ($assignment->name === 'Upload AHA online part 1') {
+                            // Get the submission for this assignment
+                            $submission = $DB->get_record('assign_submission', [
+                                'assignment' => $assignment->id,
+                                'userid' => $user_id,
+                                'status' => 'submitted'
+                            ]);
+                            
+                            if ($submission) {
+                                // Check if there are files attached to this submission
+                                $file_submission = $DB->get_record('assignsubmission_file', ['submission' => $submission->id]);
+                                
+                                if ($file_submission && $file_submission->numfiles > 0) {
+                                    // Get the context of this assignment
+                                    $cm = get_coursemodule_from_instance('assign', $assignment->id, $assignment->course);
+                                    $context = context_module::instance($cm->id);
+                                    
+                                    // Get the files from this submission
+                                    $fs = get_file_storage();
+                                    $files = $fs->get_area_files(
+                                        $context->id,
+                                        'assignsubmission_file',
+                                        'submission_files',
+                                        $submission->id,
+                                        'filename',
+                                        false
+                                    );
+                                    
+                                    if (!empty($files)) {
+                                        // Get the first file
+                                        $file = reset($files);
+                                        $file_id = $file->get_id();
+                                        $submission_id = $submission->id;
+                                        $file_found = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // If we found a file, generate a public URL for it
+                if ($file_found && $file_id && $submission_id) {
+                    // Check if our function to generate public URL exists
+                    if (function_exists('local_mts_hacks_calculate_submission_file_signature')) {
+                        require_once($CFG->dirroot . '/local/mts_hacks/lib.php');
+                        
+                        // Generate public URL for the file
+                        $token = local_mts_hacks_calculate_submission_file_signature($file_id, $submission_id);
+                        $public_url = $CFG->wwwroot . '/local/mts_hacks/view_submission_file/view_submission_file.php?' . 
+                            'file_id=' . urlencode($file_id) . 
+                            '&submission_id=' . urlencode($submission_id) . 
+                            '&token=' . urlencode($token);
+                        
+                        // Create the eCard button
+                        $is_aha_online = ($assignment->name === 'Upload AHA online part 1');
+                        $view_button_text = $is_aha_online ? 'View AHA online part 1' : 'View eCard';
+                        $forward_button_text = $is_aha_online ? 'Forward AHA online part 1' : 'Forward eCard';
+                        $ecard_button = html_writer::tag('a', $view_button_text, [
+                            'href' => $public_url,
+                            'class' => 'btn btn-success',
+                            'target' => '_blank'
+                        ]);
+                        
+                        // Get user's first and last name
+                        $user_fulldetails = $DB->get_record('user', ['id' => $user_id], 'firstname, lastname');
+                        $first_name = $user_fulldetails ? $user_fulldetails->firstname : '';
+                        $last_name = $user_fulldetails ? $user_fulldetails->lastname : '';
+                        
+                        // Construct the subject line
+                        $subject = rawurlencode("Check out " . $first_name . " " . $last_name . "'s eCard for " . $course_name);
+                        
+                        // Construct the body with the actual link
+                        $body = rawurlencode("eCard of " . $first_name . " " . $last_name . " for the course " . $course_name . " is available at:\n\n" . $public_url);
+                        
+                        // Generate the mailto link
+                        $mailto_link = 'mailto:?subject=' . $subject . '&body=' . $body;
+                        
+                        // Create the "Forward eCard" button
+                        $forward_button = html_writer::tag('a', $forward_button_text, [
+                            'href' => $mailto_link,
+                            'class' => 'btn btn-primary',
+                            'target' => '_blank'
+                        ]);
+                    } else {
+                        $ecard_button = html_writer::tag('span', 'eCard feature not properly configured', ['class' => 'text-warning']);
+                        $forward_button = html_writer::tag('span', 'eCard feature not properly configured', ['class' => 'text-warning']);
+                    }
                 } else {
-                    // If the certificate is missing, or the function doesn't exist, display a placeholder
                     $ecard_button = html_writer::tag('span', 'No eCard available', ['class' => 'text-muted']);
                     $forward_button = html_writer::tag('span', 'No eCard available', ['class' => 'text-muted']);
                 }
             } else {
-                $ecard_button = html_writer::tag('span', 'eCard feature not available', ['class' => 'text-warning']);
-                $forward_button = html_writer::tag('span', 'eCard feature not available', ['class' => 'text-warning']);
-            }
+                // Standard handling for non-AHA courses (existing code)
+                // Check if mod_customcert is installed before querying
+                if ($DB->get_manager()->table_exists('customcert_issues')) {
+                    // Get the latest certificate (eCard) issue for this user in this course
+                    $certificate = $DB->get_record_sql("
+                        SELECT ci.id, ci.code, ci.customcertid, ci.userid
+                        FROM {customcert_issues} ci
+                        JOIN {customcert} c ON ci.customcertid = c.id
+                        WHERE ci.userid = :userid 
+                            AND c.course = :courseid 
+                            AND (c.name = 'Completion eCard' OR c.name = 'Cognitive eCard')
+                        ORDER BY ci.id DESC
+                        LIMIT 1",
+                        ['userid' => $user_id, 'courseid' => $token->course_id]
+                    );
+            
+                    if ($certificate && !empty($certificate->code) && function_exists('generate_public_url_for_certificate')) {
+                        // Generate the public eCard URL
+                        $public_url = generate_public_url_for_certificate($certificate->code);
+                    
+                        // Create the eCard button
+                        $ecard_button = html_writer::tag('a', 'View eCard', [
+                            'href' => $public_url,
+                            'class' => 'btn btn-success',
+                            'target' => '_blank'
+                        ]);
+            
+                        // Get user's first and last name
+                        $user_fulldetails = $DB->get_record('user', ['id' => $user_id], 'firstname, lastname');
+                        $first_name = $user_fulldetails ? $user_fulldetails->firstname : '';
+                        $last_name = $user_fulldetails ? $user_fulldetails->lastname : '';
         
+                        // Construct the subject line
+                        $subject = rawurlencode("Check out " . $first_name . " " . $last_name . "'s eCard for " . $course_name);
+        
+                        // Construct the body with the actual link
+                        $body = rawurlencode("eCard of " . $first_name . " " . $last_name . " for the course " . $course_name . " is available at:\n\n" . $public_url);
+        
+                        // Generate the mailto link
+                        $mailto_link = 'mailto:?subject=' . $subject . '&body=' . $body;
+        
+                        // Create the "Forward eCard" button
+                        $forward_button = html_writer::tag('a', 'Forward eCard', [
+                            'href' => $mailto_link,
+                            'class' => 'btn btn-primary',
+                            'target' => '_blank'
+                        ]);
+                    } else {
+                        // If the certificate is missing, or the function doesn't exist, display a placeholder
+                        $ecard_button = html_writer::tag('span', 'No eCard available', ['class' => 'text-muted']);
+                        $forward_button = html_writer::tag('span', 'No eCard available', ['class' => 'text-muted']);
+                    }
+                } else {
+                    $ecard_button = html_writer::tag('span', 'eCard feature not available', ['class' => 'text-warning']);
+                    $forward_button = html_writer::tag('span', 'eCard feature not available', ['class' => 'text-warning']);
+                }
+            }
+            
             // Output the buttons in separate columns
             echo html_writer::tag('td', $ecard_button);
             echo html_writer::tag('td', $forward_button);
-            echo html_writer::end_tag('tr');
         }                                               
         echo html_writer::end_tag('tr');
     }
