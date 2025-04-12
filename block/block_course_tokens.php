@@ -120,6 +120,48 @@ class block_course_tokens extends block_base
         // Add the combined alert to the block content
         $this->content->text .= html_writer::tag('p', $alert_message, ['class' => 'alert alert-info']);
 
+        // Flag to determine if user has any in-progress courses older than the defined limit
+        $has_old_in_progress = false;
+
+        // Define the age threshold (in days) for considering a course as "old in-progress"
+        $days_limit = 60;
+
+        // Calculate the timestamp that is 60 days before now
+        $old_timestamp = time() - ($days_limit * 24 * 60 * 60);
+
+        // Loop through each course to check for old in-progress enrollments
+        foreach ($course_data as $course_name => $counts) {
+            // Only proceed if there are in-progress courses
+            if ($counts['in_progress'] > 0) {
+                // SQL query to find user enrolments older than 60 days and not voided
+                $sql = "SELECT ue.id
+                        FROM {user_enrolments} ue
+                        JOIN {enrol} e ON e.id = ue.enrolid
+                        JOIN {course_tokens} t ON t.user_enrolments_id = ue.id
+                        WHERE e.courseid = ?
+                        AND t.user_id = ?
+                        AND ue.timecreated < ?
+                        AND t.voided_at IS NULL";
+
+                $params = [$counts['course_id'], $USER->id, $old_timestamp];
+
+                // If at least one old in-progress course is found, set the flag and stop further checking
+                if ($DB->record_exists_sql($sql, $params)) {
+                    $has_old_in_progress = true;
+                    break;
+                }
+            }
+        }
+
+        // Show alert only if the user has old in-progress courses
+        if ($has_old_in_progress) {
+            $this->content->text .= html_writer::tag(
+                'p',
+                'Incomplete courses expire 180 days after enrollment.',
+                ['class' => 'alert alert-warning']
+            );
+        }
+
         // Output the data in the block
         $this->content->text .= html_writer::start_tag('table', array('class' => 'table table-striped table-hover table-bordered'));
 
