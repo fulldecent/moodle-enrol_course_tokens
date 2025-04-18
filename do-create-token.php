@@ -116,7 +116,7 @@ if (empty($user)) {
 
     Please login at https://learn.pacificmedicaltraining.com/pmt-login
 
-    If you have any concerns, please don't hesitate to contact us at support@pacificmedicaltraining.com
+    If you have any concerns, please reply here.
 
     Thank you.
     ";
