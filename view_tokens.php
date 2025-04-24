@@ -42,7 +42,7 @@ if (!empty($tokens)) {
 
     // Display alert if there is an available token
     if ($has_available_token) {
-        echo html_writer::tag('div', 'Unused course tokens expire 180 days after order.', array('class' => 'alert alert-info'));
+        echo html_writer::tag('div', 'Token will expire in 90 days after order if not used.', array('class' => 'alert alert-info'));
     }
     // Start a Bootstrap-styled table
     echo html_writer::start_tag('table', array('class' => 'table table-striped table-hover'));
