@@ -1,6 +1,68 @@
 <?php
 require_once('/var/www/vhosts/moodle/config.php'); // Actual path to Moodle's config.php
 
+// Buffer all output to prevent any premature HTML
+ob_start();
+
+/**
+ * Custom function to send HTML emails consistently
+ * 
+ * @param object $user User object with email, firstname, lastname
+ * @param string $subject Email subject
+ * @param string $html_content HTML content of the email 
+ * @param string $sender_email Sender email address
+ * @param string $sender_firstname Sender first name
+ * @param string $sender_lastname Sender last name
+ * @return bool True if email was sent successfully, false otherwise
+ */
+function send_html_email($user, $subject, $html_content, $sender_email = 'support@pacificmedicaltraining.com', 
+                          $sender_firstname = 'Pacific', $sender_lastname = 'Medical Training') {
+    global $CFG;
+    
+    // Create sender object
+    $sender = new stdClass();
+    $sender->firstname = $sender_firstname;
+    $sender->lastname = $sender_lastname;
+    $sender->email = $sender_email;
+    
+    // Strip HTML tags for plain text version
+    $plain_content = strip_tags($html_content);
+    
+    // Use PHP's native mail function as a fallback if configured
+    if (!empty($CFG->noreplyaddress) && $CFG->noreplyaddress !== 'support@pacificmedicaltraining.com') {
+        $to = $user->email;
+        $headers = "From: $sender_firstname $sender_lastname <$sender_email>\r\n";
+        $headers .= "Reply-To: $sender_email\r\n";
+        $headers .= "MIME-Version: 1.0\r\n";
+        $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+        
+        // Attempt direct mail sending
+        $mail_result = mail($to, $subject, $html_content, $headers);
+        
+        // If mail sent successfully with direct method, return true
+        if ($mail_result) {
+            return true;
+        }
+    }
+    
+    // Fallback to Moodle's email function - FIX: Don't pass headers as array
+    try {
+        // Capture output to avoid any interference
+        ob_start();
+        $result = email_to_user($user, $sender, $subject, $plain_content, $html_content);
+        ob_end_clean();
+        
+        return $result;
+    } catch (Exception $e) {
+        error_log("Email sending error: " . $e->getMessage());
+        return false;
+    }
+}
+
+// Clear any buffered output before setting headers
+ob_end_clean();
+ob_start();
+
 // Set the content type to JSON
 header('Content-Type: application/json');
 
@@ -135,65 +197,121 @@ if (empty($user)) {
 
     // Insert new user record
     $new_user->id = $DB->insert_record('user', $new_user);
-    $user = $new_user;
+    
+    // FIX: Retrieve full user record to ensure all properties are available
+    $user = $DB->get_record('user', ['id' => $new_user->id]);
 
-    // Prepare email details for new users
-    $message1 = "
-    Dear {$user->firstname} {$user->lastname},
+    // Prepare HTML email for new users
+    $message1html = "
+    <html>
+    <head>
+    <style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+      .container { max-width: 600px; margin: auto; padding: 20px; }
+      .header { 
+        background-color: #00467f; 
+        color: white; 
+        padding: 10px; 
+        text-align: center; 
+        border-radius: 5px;
+        height: 80px;
+        vertical-align: middle;
+        line-height: 80px;
+      }
+      .header img { 
+        max-width: 200px;
+        vertical-align: middle;
+        display: inline-block;
+      }
+      .credentials-box { 
+        background-color: #f4f4f4; 
+        padding: 10px; 
+        border-left: 5px solid #00467f; 
+        margin: 15px 0; 
+      }
+      .footer { margin-top: 20px; font-size: 0.9em; color: #777; }
+    </style>
+    </head>
+    <body>
+      <div class='container'>
+        <div class='header'>
+          <img src='https://pacificmedicaltraining.com/images/logo-pmt.png?v=3' alt='Pacific Medical Training' style='max-width: 200px; height: auto;'>
+        </div>
+        <p>Dear {$user->firstname} {$user->lastname},</p>
+        
+        <p>Your new account has been created at Pacific Medical Training.</p>
+        <p>Here are your login details:</p>
+        
+        <blockquote class='credentials-box'>
+          <strong>Email:</strong> {$user->email}<br>
+          <strong>Password:</strong> {$plaintext_password}
+        </blockquote>
 
-    Your new account has been created at Pacific Medical Training. 
-    Here are your login details:
+        <p>You have the option to access your dashboard in one of two ways:</p>
+        <ol>
+          <li>Use your email address and password to log in.</li>
+          <li>Click the \"Send Magic Link\" button. Check your email for the link to log in. This option does not require a password.</li>
+        </ol>
 
-    Email: {$user->email}
-    Password: {$plaintext_password}
+        <p>Please login at <a href='https://learn.pacificmedicaltraining.com/pmt-login'>https://learn.pacificmedicaltraining.com/pmt-login</a></p>
 
-    You have the option to access your dashboard in one of two ways:
-        1. Use your email address and password to log in.
-        2. Click the \"Send Magic Link\" button. Check your email for the link to log in. This option does not require a password.
+        <p>If you have any concerns, please reply here.</p>
 
-    Please login at https://learn.pacificmedicaltraining.com/pmt-login
-
-    If you have any concerns, please reply here.
-
-    Thank you.
+        <p>Thank you.</p>
+        
+        <div class='footer'>
+          <p>Pacific Medical Training<br>
+          <a href='https://pacificmedicaltraining.com'>pacificmedicaltraining.com</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
     ";
 
-    // Prepare email subject
+    // Send the new user welcome email
     $subject = "Your new account from Pacific Medical Training";
-
-    // Explicitly set the sender details
-    $sender = new stdClass();
-    $sender->firstname = "PMT";
-    $sender->lastname = "Instructor";
-    $sender->email = "support@pacificmedicaltraining.com";
-
-    // Send the email
-    email_to_user($user, $sender, $subject, $message1);
+    $email_sent = send_html_email($user, $subject, $message1html);
+    
+    // Wait to ensure email is sent before proceeding
+    sleep(1);
+    
+    // Log if email sending failed
+    if (!$email_sent) {
+        error_log("Failed to send welcome email to new user: {$user->email}");
+    }
 }
 
 // Get the current user's ID to store as 'created_by'
-$created_by = $USER->id;
+$created_by = isset($USER->id) ? $USER->id : 364; // Default to Robot user if $USER is not set
 
 // Create tokens
 $tokens = [];
-for ($i = 0; $i < $quantity; $i++) {
-    $token = new stdClass();
-    $token->course_id = $course_id;
-    $token->extra_json = $extra_json;
-    $course_id_number = $DB->get_field('course', 'idnumber', ['id' => $course_id]);
+try {
+    for ($i = 0; $i < $quantity; $i++) {
+        $token = new stdClass();
+        $token->course_id = $course_id;
+        $token->extra_json = $extra_json;
+        $course_id_number = $DB->get_field('course', 'idnumber', ['id' => $course_id]);
 
-    $tokenPrefix = $course_id_number ? $course_id_number : $course_id;
-    $token->code = $tokenPrefix . '-' . bin2hex(openssl_random_pseudo_bytes(2)) . '-' . bin2hex(openssl_random_pseudo_bytes(2)) . '-' . bin2hex(openssl_random_pseudo_bytes(2));
-    $token->timecreated = time();
-    $token->timemodified = time();
-    $token->user_id = $user->id;
-    $token->voided = '';
-    $token->user_enrolments_id = null;
-    $token->group_account = $group_account;
-    $token->created_by = 364; // id of Robot user.
+        $tokenPrefix = $course_id_number ? $course_id_number : $course_id;
+        $token->code = $tokenPrefix . '-' . bin2hex(openssl_random_pseudo_bytes(2)) . '-' . bin2hex(openssl_random_pseudo_bytes(2)) . '-' . bin2hex(openssl_random_pseudo_bytes(2));
+        $token->timecreated = time();
+        $token->timemodified = time();
+        $token->user_id = $user->id;
+        $token->voided = '';
+        $token->user_enrolments_id = null;
+        $token->group_account = $group_account;
+        $token->created_by = 364; // id of Robot user.
 
-    $token->id = $DB->insert_record('course_tokens', $token);
-    $tokens[] = $token->code;
+        $token->id = $DB->insert_record('course_tokens', $token);
+        $tokens[] = $token->code;
+    }
+} catch (Exception $e) {
+    // Log and handle token creation errors
+    error_log("Token creation error: " . $e->getMessage());
+    http_response_code(500);
+    echo json_encode(['error' => 'Failed to create tokens: ' . $e->getMessage()]);
+    exit;
 }
 
 // Determine the correct token wording
@@ -202,30 +320,67 @@ $token_word = $quantity === 1 ? 'token' : 'tokens';
 // Prepare email details for token creation
 $token_url = "https://learn.pacificmedicaltraining.com/my/";
 
-$message2 = "
-    Dear {$user->firstname} {$user->lastname},
-
-    You have received {$quantity} {$token_word} for the course {$course->fullname}. 
-    You can view your tokens at: {$token_url}.
-
-    Order Number: #{$order_number}.
-
-    Please login at https://learn.pacificmedicaltraining.com/pmt-login
+$message2html = "
+<html>
+<head>
+<style>
+  body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+  .container { max-width: 600px; margin: auto; padding: 20px; }
+  .header { 
+    background-color: #00467f; 
+    color: white; 
+    padding: 10px; 
+    text-align: center; 
+    border-radius: 5px;
+    height: 80px; /* Set a fixed height based on your needs */
+    vertical-align: middle;
+    line-height: 80px; /* Match the height value */
+  }
+  .header img { 
+    max-width: 200px;
+    vertical-align: middle;
+    display: inline-block;
+  }
+  .footer { margin-top: 20px; font-size: 0.9em; color: #777; }
+  .token-box { background-color: #f4f4f4; padding: 10px; border-left: 5px solid #00467f; margin: 15px 0; }
+</style>
+</head>
+<body>
+  <div class='container'>
+    <div class='header'>
+      <img src='https://pacificmedicaltraining.com/images/logo-pmt.png?v=3' alt='Pacific Medical Training' style='max-width: 200px; height: auto;'>
+    </div>
+    <p>Dear {$user->firstname} {$user->lastname},</p>
     
-    Thank you.
+    <blockquote class='token-box'>
+      You have received {$quantity} {$token_word} for the course <strong>{$course->fullname}</strong>.<br>
+      Order Number: #{$order_number}
+    </blockquote>
+
+    <p>You can view your tokens at: <a href='{$token_url}'>{$token_url}</a></p>
+
+    <p>Thank you,<br>Pacific Medical Training</p>
+    
+    <div class='footer'>
+      <p>Pacific Medical Training<br>
+      <a href='https://pacificmedicaltraining.com'>pacificmedicaltraining.com</a></p>
+    </div>
+  </div>
+</body>
+</html>
 ";
 
-// Prepare email subject
-$subject = "Your course {$token_word} from Pacific Medical Training";
+// Send the token email
+$subject = "{$course->fullname}: course {$token_word}";
+$email_sent = send_html_email($user, $subject, $message2html);
 
-// Explicitly set the sender details
-$sender = new stdClass();
-$sender->firstname = "PMT";
-$sender->lastname = "Instructor";
-$sender->email = "support@pacificmedicaltraining.com";
+// Log if email sending failed
+if (!$email_sent) {
+    error_log("Failed to send token email to user: {$user->email}");
+}
 
-// Send the email
-email_to_user($user, $sender, $subject, $message2);
+// Clean the output buffer
+ob_end_clean();
 
 // Return success response
 http_response_code(200);

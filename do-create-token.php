@@ -3,6 +3,31 @@ require_once('../../config.php');
 require_login();
 require_capability('moodle/site:config', context_system::instance());
 
+/**
+ * Custom function to send HTML emails consistently
+ * 
+ * @param object $user User object with email, firstname, lastname
+ * @param string $subject Email subject
+ * @param string $html_content HTML content of the email 
+ * @param object $sender Sender object with email, firstname, lastname
+ * @return bool True if email was sent successfully, false otherwise
+ */
+function send_html_email($user, $subject, $html_content, $sender) {
+    global $CFG;
+    
+    // Strip HTML tags for plain text version
+    $plain_content = strip_tags($html_content);
+    
+    try {
+        // Send email using Moodle's function
+        $result = email_to_user($user, $sender, $subject, $plain_content, $html_content);
+        return $result;
+    } catch (Exception $e) {
+        error_log("Email sending error: " . $e->getMessage());
+        return false;
+    }
+}
+
 // Process, validate form inputs
 require_sesskey();
 $course_id = required_param('course_id', PARAM_INT);
@@ -47,7 +72,7 @@ if ($quantity < 1) {
 }
 
 // Check if a user exists with the given email, even if suspended
-$user = $DB->get_record('user', ['email' => $email, 'deleted' => 0]);
+$existing_user = $DB->get_record('user', ['email' => $email, 'deleted' => 0]);
 
 // If user exists and is suspended, reactivate the account
 if ($existing_user && $existing_user->suspended) {
@@ -98,27 +123,75 @@ if (empty($user)) {
 
     // Insert new user record
     $new_user->id = $DB->insert_record('user', $new_user);
-    $user = $new_user;
+    
+    // Get the full user record to ensure all properties are available
+    $user = $DB->get_record('user', ['id' => $new_user->id]);
 
     // Prepare email details for new users
-    $message1 = "
-    Dear {$user->firstname} {$user->lastname},
+    $message1html = "
+    <html>
+    <head>
+    <style>
+      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+      .container { max-width: 600px; margin: auto; padding: 20px; }
+      .header { 
+        background-color: #00467f; 
+        color: white; 
+        padding: 10px; 
+        text-align: center; 
+        border-radius: 5px;
+        height: 80px;
+        vertical-align: middle;
+        line-height: 80px;
+      }
+      .header img { 
+        max-width: 200px;
+        vertical-align: middle;
+        display: inline-block;
+      }
+      .credentials-box { 
+        background-color: #f4f4f4; 
+        padding: 10px; 
+        border-left: 5px solid #00467f; 
+        margin: 15px 0; 
+      }
+      .footer { margin-top: 20px; font-size: 0.9em; color: #777; }
+    </style>
+    </head>
+    <body>
+      <div class='container'>
+        <div class='header'>
+          <img src='https://pacificmedicaltraining.com/images/logo-pmt.png?v=3' alt='Pacific Medical Training' style='max-width: 200px; height: auto;'>
+        </div>
+        <p>Dear {$user->firstname} {$user->lastname},</p>
+        
+        <p>Your new account has been created at Pacific Medical Training.</p>
+        <p>Here are your login details:</p>
+        
+        <blockquote class='credentials-box'>
+          <strong>Email:</strong> {$user->email}<br>
+          <strong>Password:</strong> {$plaintext_password}
+        </blockquote>
 
-    Your new account has been created at Pacific Medical Training. 
-    Here are your login details:
+        <p>You have the option to access your dashboard in one of two ways:</p>
+        <ol>
+          <li>Use your email address and password to log in.</li>
+          <li>Click the \"Send Magic Link\" button. Check your email for the link to log in. This option does not require a password.</li>
+        </ol>
 
-    Email: {$user->email}
-    Password: {$plaintext_password}
+        <p>Please login at <a href='https://learn.pacificmedicaltraining.com/pmt-login'>https://learn.pacificmedicaltraining.com/pmt-login</a></p>
 
-    You have the option to access your dashboard in one of two ways:
-        1. Use your email address and password to log in.
-        2. Click the \"Send Magic Link\" button. Check your email for the link to log in. This option does not require a password.
+        <p>If you have any concerns, please reply here.</p>
 
-    Please login at https://learn.pacificmedicaltraining.com/pmt-login
-
-    If you have any concerns, please reply here.
-
-    Thank you.
+        <p>Thank you.</p>
+        
+        <div class='footer'>
+          <p>Pacific Medical Training<br>
+          <a href='https://pacificmedicaltraining.com'>pacificmedicaltraining.com</a></p>
+        </div>
+      </div>
+    </body>
+    </html>
     ";
 
     // Prepare email subject
@@ -126,12 +199,12 @@ if (empty($user)) {
 
     // Explicitly set the sender details
     $sender = new stdClass();
-    $sender->firstname = "PMT";
-    $sender->lastname = "Instructor";
+    $sender->firstname = "Pacific";
+    $sender->lastname = "Medical Training";
     $sender->email = "support@pacificmedicaltraining.com";
 
-    // Send the email
-    email_to_user($user, $sender, $subject, $message1);
+    // Send the HTML email
+    send_html_email($user, $subject, $message1html, $sender);
 }
 
 // Get the current user's ID to store as 'created_by'
@@ -166,17 +239,56 @@ $token_word = $quantity === 1 ? 'token' : 'tokens';
 // Prepare email details for token creation
 $token_url = "https://learn.pacificmedicaltraining.com/my/";
 
-$message2 = "
-    Dear {$user->firstname} {$user->lastname},
-
-    You have received {$quantity} {$token_word} for the course {$course->fullname}. 
-    You can view your tokens at: {$token_url}.
-
-    Order Number: #{$order_number}.
+$message2html = "
+<html>
+<head>
+<style>
+  body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+  .container { max-width: 600px; margin: auto; padding: 20px; }
+  .header { 
+    background-color: #00467f; 
+    color: white; 
+    padding: 10px; 
+    text-align: center; 
+    border-radius: 5px;
+    height: 80px; /* Set a fixed height based on your needs */
+    vertical-align: middle;
+    line-height: 80px; /* Match the height value */
+  }
+  .header img { 
+    max-width: 200px;
+    vertical-align: middle;
+    display: inline-block;
+  }
+  .footer { margin-top: 20px; font-size: 0.9em; color: #777; }
+  .token-box { background-color: #f4f4f4; padding: 10px; border-left: 5px solid #00467f; margin: 15px 0; }
+</style>
+</head>
+<body>
+  <div class='container'>
+    <div class='header'>
+      <img src='https://pacificmedicaltraining.com/images/logo-pmt.png?v=3' alt='Pacific Medical Training' style='max-width: 200px; height: auto;'>
+    </div>
+    <p>Dear {$user->firstname} {$user->lastname},</p>
     
-    Please login at https://learn.pacificmedicaltraining.com/pmt-login
+    <blockquote class='token-box'>
+      You have received {$quantity} {$token_word} for the course <strong>{$course->fullname}</strong>.<br>
+      Order Number: #{$order_number}
+    </blockquote>
 
-    Thank you.
+    <p>You can view your tokens at: <a href='{$token_url}'>{$token_url}</a></p>
+    
+    <p>Please login at <a href='https://learn.pacificmedicaltraining.com/pmt-login'>https://learn.pacificmedicaltraining.com/pmt-login</a></p>
+
+    <p>Thank you,<br>Pacific Medical Training</p>
+    
+    <div class='footer'>
+      <p>Pacific Medical Training<br>
+      <a href='https://pacificmedicaltraining.com'>pacificmedicaltraining.com</a></p>
+    </div>
+  </div>
+</body>
+</html>
 ";
 
 // Prepare email subject
@@ -184,12 +296,12 @@ $subject = "Your course {$token_word} from Pacific Medical Training";
 
 // Explicitly set the sender details
 $sender = new stdClass();
-$sender->firstname = "PMT";
-$sender->lastname = "Instructor";
+$sender->firstname = "Pacific";
+$sender->lastname = "Medical Training";
 $sender->email = "support@pacificmedicaltraining.com";
 
-// Send the email
-email_to_user($user, $sender, $subject, $message2);
+// Send the HTML email
+send_html_email($user, $subject, $message2html, $sender);
 
 // Redirect with success message
 redirect(new moodle_url('/enrol/course_tokens/'), get_string('tokenscreated', 'enrol_course_tokens', $quantity), null, \core\output\notification::NOTIFY_SUCCESS);
