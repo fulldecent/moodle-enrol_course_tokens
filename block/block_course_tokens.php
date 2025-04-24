@@ -114,7 +114,7 @@ class block_course_tokens extends block_base
 
         // Append expiration notice if there are available tokens
         if ($has_available_tokens) {
-            $alert_message .= ' Unused course tokens expire 180 days after order.';
+            $alert_message .= ' Token will expire in 90 days after order if not used.';
         }
 
         // Add the combined alert to the block content
@@ -157,7 +157,7 @@ class block_course_tokens extends block_base
         if ($has_old_in_progress) {
             $this->content->text .= html_writer::tag(
                 'p',
-                'Incomplete courses expire 180 days after enrollment.',
+                'All courses expire 90 days after enrollment if not completed.',
                 ['class' => 'alert alert-warning']
             );
         }
