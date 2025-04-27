@@ -111,7 +111,6 @@ echo '<th>' . s(get_string('extrajson', 'enrol_course_tokens')) . '</th>';
 echo '  <th>' . s(get_string('corporateaccount', 'enrol_course_tokens')) . '</th>';
 echo '  <th>' . s(get_string('usedby', 'enrol_course_tokens')) . '</th>';
 echo '  <th>' . s(get_string('usedat', 'enrol_course_tokens')) . '</th>';
-echo '  <th>' . s(get_string('resendNewAccountEmail', 'enrol_course_tokens')) . '</th>';
 echo '</tr>';
 foreach ($tokens as $token) {
     echo '<tr>';
@@ -191,9 +190,6 @@ foreach ($tokens as $token) {
         echo '<td>-</td>';
         echo '<td>-</td>';
     }
-    echo '<td>';
-    echo '<button class="btn btn-secondary resend-email" data-email="' . s($purchaser_email) . '" data-token="' . s($token->code) . '">Resend New Account Email</button>';
-    echo '</td>';
     if (!empty($token->user_enrolments_id) && !empty($used_by_user)) {
         $user_email = s($used_by_user->email); // Get the correct enrolled user's email
         $token_id = s($token->id); // Ensure token ID is passed correctly
@@ -351,43 +347,6 @@ echo '<script>
             };
             xhr.send("email=" + encodeURIComponent(email) + "&sesskey=" + encodeURIComponent(M.cfg.sesskey));
         }
-    });
-    document.querySelectorAll(".resend-email").forEach(button => {
-        button.addEventListener("click", function() {
-            const email = this.getAttribute("data-email");
-            const token = this.getAttribute("data-token");
-
-            if (email && token) {
-                const controller = new AbortController();
-                const timeout = setTimeout(() => {
-                    controller.abort();
-                    alert("Server is taking longer than normal to resend the email. Please try again.");
-                }, 8000);
-
-                fetch("resend-new-account-email.php", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/x-www-form-urlencoded"
-                    },
-                    body: `email=${encodeURIComponent(email)}&token=${encodeURIComponent(token)}&sesskey=${M.cfg.sesskey}`,
-                    signal: controller.signal
-                })
-                .then(response => response.json())
-                .then(data => {
-                    clearTimeout(timeout); // Clear the timeout if the request completes
-                    if (data.success) {
-                        alert("Email resent successfully.");
-                    } else {
-                        alert("Error resending email: " + data.error);
-                    }
-                })
-                .catch(error => {
-                    if (error.name !== "AbortError") {
-                        alert("Server is taking longer than expected. Please try again.");
-                    }
-                });
-            }
-        });
     });
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.11.8/dist/umd/popper.min.js" integrity="sha384-I7E8VVD/ismYTF4hNIPjVp/Zjvgyol6VFvRkX/vR+Vc4jQkC+hVqc2pM8ODewa9r" crossorigin="anonymous"></script>
