@@ -379,6 +379,34 @@ if (!$email_sent) {
     error_log("Failed to send token email to user: {$user->email}");
 }
 
+// Associate the user with a corporate/group account
+// This updates or creates a custom profile field entry for the user
+// to track which corporate account they belong to
+if (!empty($group_account)) {
+  global $DB;
+
+  // Find the fieldid for the custom profile field "customer_group"
+  $fieldid = $DB->get_field('user_info_field', 'id', ['shortname' => 'customer_group'], MUST_EXIST);
+
+  // Check if an entry already exists for this user and field
+  $existing = $DB->get_record('user_info_data', ['userid' => $user->id, 'fieldid' => $fieldid]);
+
+  if ($existing) {
+      // Update existing data
+      $existing->data = $group_account;
+      $DB->update_record('user_info_data', $existing);
+  } else {
+      // Insert new data
+      $record = (object)[
+          'userid' => $user->id,
+          'fieldid' => $fieldid,
+          'data' => $group_account,
+          'dataformat' => 0,
+      ];
+      $DB->insert_record('user_info_data', $record);
+  }
+}
+
 // Clean the output buffer
 ob_end_clean();
 
