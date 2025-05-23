@@ -113,7 +113,9 @@ echo '  <th>' . s(get_string('usedby', 'enrol_course_tokens')) . '</th>';
 echo '  <th>' . s(get_string('usedat', 'enrol_course_tokens')) . '</th>';
 echo '</tr>';
 foreach ($tokens as $token) {
-    echo '<tr>';
+    // Add bg-danger class for voided tokens
+    $rowClass = $token->voided ? ' class="bg-danger text-white"' : '';
+    echo '<tr' . $rowClass . '>';
     echo '<td>' . s($token->code) . '</td>';
     echo '<td>' . s($courses[$token->course_id]) . '</td>';
 
@@ -193,7 +195,7 @@ foreach ($tokens as $token) {
     if (!empty($token->user_enrolments_id) && !empty($used_by_user)) {
         $user_email = s($used_by_user->email); // Get the correct enrolled user's email
         $token_id = s($token->id); // Ensure token ID is passed correctly
-    
+
         echo '<td>
             <button type="button" class="btn btn-warning unenroll-btn"
                 data-bs-toggle="tooltip"
@@ -207,14 +209,14 @@ foreach ($tokens as $token) {
     } else {
         echo '<td>-</td>';
     }
-    
+
     if (!empty($token->id)) {
         $token_id = s($token->id);
         $is_used = !empty($token->used_on);
-        
+
         // Use the same used_by_user logic for consistency
         $user_email = !empty($used_by_user) ? s($used_by_user->email) : null;
-    
+
         echo '<td>';
         if ($token->voided) {
             echo '<button type="button" class="btn btn-success unvoid-token-btn"
@@ -225,10 +227,10 @@ foreach ($tokens as $token) {
                 Unvoid Token
             </button>';
         } else {
-            $tooltipText = $is_used 
-                ? 'Clicking this will void the token and will unenroll ' . $user_email . ' from the course. All progress will be lost.' 
+            $tooltipText = $is_used
+                ? 'Clicking this will void the token and will unenroll ' . $user_email . ' from the course. All progress will be lost.'
                 : 'Clicking this will void the token.';
-            
+
             echo '<button type="button" class="btn btn-danger void-token-btn"
                         data-bs-toggle="tooltip"
                         data-bs-placement="top"
@@ -242,7 +244,7 @@ foreach ($tokens as $token) {
         echo '</td>';
     } else {
         echo '<td>-</td>';
-    }    
+    }
     echo '</tr>';
 }
 echo '</table>';
@@ -257,7 +259,7 @@ echo '
             </div>
             <div class="modal-body">
                 <div class="alert alert-danger">
-                    <strong>Warning!</strong> Clicking this will unenroll <span id="unenrollUserEmail"></span> from the course. 
+                    <strong>Warning!</strong> Clicking this will unenroll <span id="unenrollUserEmail"></span> from the course.
                     All progress will be lost. The course token can be used again after unenrolling.
                 </div>
             </div>
@@ -539,8 +541,8 @@ let selectedTokenId = null;
 // Step 1: Show modal when Unvoid Token button is clicked
 document.querySelectorAll(".unvoid-token-btn").forEach(button => {
     button.addEventListener("click", function() {
-        selectedTokenId = this.getAttribute("data-token-id"); 
-        
+        selectedTokenId = this.getAttribute("data-token-id");
+
         // Show the modal (Only shows the modal, does NOT unvoid yet)
         let unvoidModal = new bootstrap.Modal(document.getElementById("unvoidTokenModal"));
         unvoidModal.show();
