@@ -85,7 +85,7 @@ $enrol_email = optional_param('email', null, PARAM_EMAIL);
 // Check if the provided email address is already enrolled in the course
 if ($enrol_email) {
     $enrolled_user = $DB->get_record_sql(
-        "SELECT ue.id 
+        "SELECT ue.id
          FROM {user_enrolments} ue
          JOIN {enrol} e ON ue.enrolid = e.id
          WHERE e.courseid = ? AND ue.userid = (SELECT id FROM {user} WHERE email = ? AND deleted = 0 AND suspended = 0)",
@@ -121,7 +121,7 @@ if ($enrol_email) {
         $new_user->lastname = $last_name;
         $new_user->timecreated = time(); // Set creation time
         $new_user->timemodified = time(); // Set modification time
-    
+
         // Insert the new user into the database
         $new_user->id = $DB->insert_record('user', $new_user);
         $enrol_user = $new_user;
@@ -132,7 +132,7 @@ if ($enrol_email) {
 
     // Check if the currently logged-in user is already enrolled in the course
     $enrolled_user = $DB->get_record_sql(
-        "SELECT ue.id 
+        "SELECT ue.id
         FROM {user_enrolments} ue
         JOIN {enrol} e ON ue.enrolid = e.id
         WHERE e.courseid = ? AND ue.userid = ?",
@@ -161,6 +161,35 @@ if ($userEnrolment) {
     $token->used_on = time(); // Set the token usage time
     $token->used_by = $enrol_email ?: $USER->email; // Record who used the token (email or current user)
     $DB->update_record('course_tokens', $token); // Update the token record in the database
+}
+
+// Notify token owner if someone else is enrolled using their token
+if ($USER->id !== $enrol_user->id) {
+    $token_owner = $DB->get_record('user', ['id' => $USER->id]);
+
+    if ($token_owner) {
+        $notify_subject = "Your course token has been used";
+        $notify_message = "
+            Dear {$token_owner->firstname} {$token_owner->lastname},
+
+            Your course token '{$token->code}' was just used to enroll {$enrol_user->firstname} {$enrol_user->lastname} ({$enrol_user->email}) in the course: {$course->fullname}.
+
+            The enrollment was successful. The enrolled user is {$enrol_user->firstname} {$enrol_user->lastname} will receive an email shortly with login instructions.
+
+            Thank you,
+            PMT Team
+        ";
+
+        $from_user = new stdClass();
+        $from_user->email = 'support@pacificmedicaltraining.com';
+        $from_user->firstname = 'PMT';
+        $from_user->lastname = 'instructor';
+        $from_user->maildisplay = 1;
+
+        if (!email_to_user($token_owner, $from_user, $notify_subject, $notify_message)) {
+            debugging("Failed to send token use notification email to token owner {$token_owner->email}");
+        }
+    }
 }
 
 // Get phone number and address from the POST request
@@ -205,7 +234,7 @@ if (isset($new_user)) {
 
         Welcome back! You have been successfully enrolled in the {$course->fullname} course.
         Please visit your student workroom at: https://learn.pacificmedicaltraining.com/login/
-        
+
         We are excited to have you in the course.
 
         Thank you.
