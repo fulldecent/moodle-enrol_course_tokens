@@ -140,11 +140,13 @@ foreach ($tokens as $token) {
     $group_account = !empty($token->group_account) ? s($token->group_account) : '-';
     echo '<td>' . $group_account . '</td>';
 
-    // Fetch "Used By" and "Used At" details
+    // Fetch "Used By" and "Used At" details using user_enrolments_id.
+    $used_by_user = null;
     if (!empty($token->user_enrolments_id)) {
-        // Fetch the user linked to the enrollment
-        $enrollment = $DB->get_record('user_enrolments', array('id' => $token->user_enrolments_id));
-        $used_by_user = $DB->get_record('user', array('id' => $enrollment->userid), 'firstname, lastname, email, phone1, address');
+        $enrollment = $DB->get_record('user_enrolments', ['id' => $token->user_enrolments_id], 'userid');
+        if ($enrollment) {
+            $used_by_user = $DB->get_record('user', ['id' => $enrollment->userid], 'firstname, lastname, email, phone1, address');
+        }
 
         if ($used_by_user) {
             $used_by = s($used_by_user->email);

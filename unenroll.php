@@ -52,11 +52,10 @@ function unenroll_user_by_token($token_id) {
     // Unenroll user
     $enrol_plugin->unenrol_user($enrol, $enrolment->userid);
 
-    // Update token: Remove enrolment and used_by but **keep user_id**
+    // Update token: Remove enrolment reference but keep user_id
     $DB->update_record('course_tokens', [
         'id' => $token_id,
         'user_enrolments_id' => null, // Remove enrolment link
-        'used_by' => null, // Remove used_by reference
         'used_on' => null, // Reset usage date
     ]);
 
