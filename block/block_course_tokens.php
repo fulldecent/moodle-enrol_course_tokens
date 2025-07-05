@@ -54,8 +54,15 @@ class block_course_tokens extends block_base
                 ];
             }
 
-            // Fetch the user ID based on the token's used_by field (email)
-            $user = $DB->get_record('user', ['email' => $token->used_by], 'id');
+            // Get the user ID based on the email from the token
+            $user = null;
+            if (!empty($token->user_enrolments_id)) {
+                $enrolment = $DB->get_record('user_enrolments', ['id' => $token->user_enrolments_id], 'userid');
+                if ($enrolment) {
+                    // 👇 include email in the SELECT fields
+                    $user = $DB->get_record('user', ['id' => $enrolment->userid], 'id, email, firstname, lastname, phone1, address');
+                }
+            }
             $user_id = $user ? $user->id : null;
 
             // Determine token status based on conditions
@@ -267,7 +274,7 @@ class block_course_tokens extends block_base
                                     </div>
                                     <input type="hidden" name="token_code" value="' . $token->code . '">
                                 </form>
-                                
+
                                 <!-- Hidden form for enrolling myself -->
                                 <form id="enrollMyselfForm' . $token->id . '" class="d-none">
                                     <input type="hidden" name="token_code" value="' . $token->code . '">
@@ -312,7 +319,7 @@ class block_course_tokens extends block_base
                 // Hide initial elements
                 toggleElementVisibility(`initialOptions${tokenId}`);
                 toggleElementVisibility(`initialFooter${tokenId}`);
-                
+
                 // Form group IDs
                 const formGroupIds = [
                     "firstNameGroup",
@@ -321,10 +328,10 @@ class block_course_tokens extends block_base
                     "addressGroup",
                     "phoneGroup"
                 ].map(prefix => `${prefix}${tokenId}`);
-                
+
                 // Show form groups
                 formGroupIds.forEach(groupId => toggleElementVisibility(groupId, false));
-                
+
                 // Show enroll footer
                 toggleElementVisibility(`enrollFormFooter${tokenId}`, false);
             };
@@ -333,7 +340,7 @@ class block_course_tokens extends block_base
                 // Show initial elements
                 toggleElementVisibility(`initialOptions${tokenId}`, false);
                 toggleElementVisibility(`initialFooter${tokenId}`, false);
-                
+
                 // Form group IDs
                 const formGroupIds = [
                     "firstNameGroup",
@@ -342,10 +349,10 @@ class block_course_tokens extends block_base
                     "addressGroup",
                     "phoneGroup"
                 ].map(prefix => `${prefix}${tokenId}`);
-                
+
                 // Hide form groups
                 formGroupIds.forEach(groupId => toggleElementVisibility(groupId));
-                
+
                 // Hide enroll footer
                 toggleElementVisibility(`enrollFormFooter${tokenId}`);
             };
@@ -353,23 +360,23 @@ class block_course_tokens extends block_base
             const submitEnrollForm = async (tokenId, type) => {
                 const formId = type === "myself" ? `enrollMyselfForm${tokenId}` : `enrollForm${tokenId}`;
                 const form = document.getElementById(formId);
-                
+
                 if (type === "other" && !form.checkValidity()) {
                     alert("Please fill out all required fields.");
                     return;
                 }
-                
+
                 const formData = new FormData(form);
-                
+
                 try {
                     const response = await fetch("/enrol/course_tokens/use_token.php", {
                         method: "POST",
                         body: formData
                     });
-                    
+
                     const text = await response.text();
                     let data;
-                    
+
                     try {
                         data = JSON.parse(text);
                     } catch (error) {
@@ -377,7 +384,7 @@ class block_course_tokens extends block_base
                         location.reload();
                         return;
                     }
-                    
+
                     if (data.status === "error" && data.message) {
                         alert(data.message);
                         location.reload();

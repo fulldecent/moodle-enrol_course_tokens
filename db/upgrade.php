@@ -5,7 +5,7 @@ function xmldb_enrol_course_tokens_upgrade($oldversion) {
     global $DB;
 
     $dbman = $DB->get_manager();
-    
+
     // Upgrade to version 2024120305: Add voided_at and voided_notes fields.
     if ($oldversion < 2024120305) {
         $table = new xmldb_table('course_tokens');
@@ -36,6 +36,20 @@ function xmldb_enrol_course_tokens_upgrade($oldversion) {
 
         // Upgrade savepoint.
         upgrade_plugin_savepoint(true, 2024120306, 'enrol', 'course_tokens');
+    }
+
+    // Upgrade to version 2024120307: Drop the 'used_by' field.
+    if ($oldversion < 2024120307) {
+        $table = new xmldb_table('course_tokens');
+
+        // Drop the field if it exists.
+        if ($dbman->field_exists($table, 'used_by')) {
+            $field = new xmldb_field('used_by');
+            $dbman->drop_field($table, $field);
+        }
+
+        // Upgrade savepoint.
+        upgrade_plugin_savepoint(true, 2024120307, 'enrol', 'course_tokens');
     }
 
     return true;
