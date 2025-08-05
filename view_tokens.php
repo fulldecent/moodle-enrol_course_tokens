@@ -119,7 +119,7 @@ if (!empty($tokens)) {
 
         // Prepare "Used By" and "Used On" fields for display
         $used_by = $user ? $user->email : '-';
-        $used_on = !empty($token->used_on) ? date('Y-n-j', $token->used_on) : '-';
+        $used_on = !empty($token->used_on) ? date('Y-m-d', $token->used_on) : '-';
 
         // Render table row
         echo html_writer::start_tag('tr');
