@@ -52,6 +52,7 @@ if (!empty($tokens)) {
     echo html_writer::tag('th', 'Course');
     echo html_writer::tag('th', 'Status');
     echo html_writer::tag('th', 'Used by');
+    echo html_writer::tag('th', 'Name of student');
     echo html_writer::tag('th', 'Used on');
     echo html_writer::tag('th', 'Enroll myself');
     echo html_writer::tag('th', 'Enroll somebody else');
@@ -167,6 +168,11 @@ if (!empty($tokens)) {
         } else {
             echo html_writer::tag('td', '-');
         }
+
+        // Add "Name of Student" column
+        $student_name = $user ? fullname($user) : '-';
+        echo html_writer::tag('td', $student_name);
+
         echo html_writer::tag('td', $used_on);
 
         // Show "Enroll Myself" and "Enroll Somebody Else" buttons for available tokens
