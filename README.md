@@ -1,6 +1,8 @@
-# Course tokens plugin
+# Course Tokens Plugin
 
-This plugin lets you make single-use tokens for courses. Then anybody can use these tokens to create an account on your Moodle instance (if they don't already have one) and enroll in the course.
+The Course Tokens Plugin offers a simple yet powerful way to manage course enrollments in Moodle using single-use tokens. With course tokens, users can quickly create an account (if they don’t already have one) and enroll in a course—no manual enrolment required.
+
+This makes the plugin ideal for training providers, organizations, and institutions who need a secure, scalable, and flexible enrollment solution.
 
 ## Status
 
@@ -8,13 +10,33 @@ This plugin is used in a preproduction installation.
 
 Remaining issues before public 1.0.0 release are in [Issue #49](https://github.com/fulldecent/moodle-enrol_course_tokens/issues/49).
 
-
-
 Supported Moodle versions: ![CI status](https://github.com/fulldecent/moodle-local_plugin_template/actions/workflows/ci.yml/badge.svg)
 
 ## Features
 
-### :hand: ​Admin can generate tokens for course enrollment.
+- **Single-use tokens for courses**
+  Generate unique tokens that can be redeemed by learners to enroll in courses.
+
+- **Easy admin token generation**
+  Administrators can create and manage tokens manually from the Moodle admin interface.
+
+- **Secure API for automated token creation**
+  Automate token generation through a secure API with secret key authentication.
+
+- **Customizable token metadata**
+  Store additional information with tokens (e.g., department, reference codes, notes, or group accounts).
+
+- **Self-service dashboard for users**
+  Learners can easily view, manage, and redeem their available tokens through a clean dashboard.
+
+- **Enrollment tracking**
+  Token statuses update dynamically—showing whether they are available, assigned, in-progress, completed, or failed.
+
+- **Supports group and corporate accounts**
+  Assign tokens in bulk to teams or organizations for group enrollments.
+
+- **Seamless Moodle integration**
+  Enable Course Tokens as an enrollment method from `Site Administration > Plugins > Enrol plugins`.
 
 Only administrators have access to this page, where they can manually generate tokens for course enrollment. This allows for customized enrollment management within the system.
 
@@ -122,6 +144,14 @@ This will generate a "Course Tokens" block with the same features and informatio
 
 Enable course tokens as an enrollment method by navigating to `Site administration > Plugins > Enrol plugins > Course Tokens`.
 
+## Placement of the Plugin
+
+The Course Tokens plugin can be used in several ways:
+
+- **Direct enrollment via tokens**: Users redeem a token and are immediately enrolled in the associated course.
+- **User account creation**: If a learner doesn’t yet have a Moodle account, they can create one during token redemption.
+- **Dashboard and block access**: Learners can view their available tokens from the Token Dashboard page or by adding the Course Tokens block to their dashboard.
+- **API integration**: Training providers can integrate Course Tokens with their existing sales or CRM systems to issue tokens automatically.
 
 ## Quick start playground
 
@@ -146,7 +176,7 @@ These instructions include code snippets that you will need to copy/paste into y
 
    ```sh
    # Visit https://moodledev.io/general/releases to find the latest release, like X.Y.
-   
+
    export BRANCH=MOODLE_X0Y_STABLE # update X and Y here to match the latest release version
    git clone --depth=1 --branch $BRANCH git://git.moodle.org/moodle.git
    ```
@@ -166,12 +196,12 @@ These instructions include code snippets that you will need to copy/paste into y
    ```sh
    git clone https://github.com/moodlehq/moodle-docker.git
    cd moodle-docker # You are now at ~/Developer/moodle-playground/moodle-docker
-   
+
    export MOODLE_DOCKER_WWWROOT=../moodle
    export MOODLE_DOCKER_DB=pgsql
    bin/moodle-docker-compose up -d
    bin/moodle-docker-wait-for-db
-   
+
    cp config.docker-template.php $MOODLE_DOCKER_WWWROOT/config.php
    bin/moodle-docker-compose exec webserver php admin/cli/install_database.php --agree-license --fullname="Docker moodle" --shortname="docker_moodle" --summary="Docker moodle site" --adminpass="test" --adminemail="admin@example.com" --adminuser='admin'
    ```
