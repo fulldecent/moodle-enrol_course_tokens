@@ -6,28 +6,28 @@ ob_start();
 
 /**
  * Custom function to send HTML emails consistently
- * 
+ *
  * @param object $user User object with email, firstname, lastname
  * @param string $subject Email subject
- * @param string $html_content HTML content of the email 
+ * @param string $html_content HTML content of the email
  * @param string $sender_email Sender email address
  * @param string $sender_firstname Sender first name
  * @param string $sender_lastname Sender last name
  * @return bool True if email was sent successfully, false otherwise
  */
-function send_html_email($user, $subject, $html_content, $sender_email = 'support@pacificmedicaltraining.com', 
+function send_html_email($user, $subject, $html_content, $sender_email = 'support@pacificmedicaltraining.com',
                           $sender_firstname = 'Pacific', $sender_lastname = 'Medical Training') {
     global $CFG;
-    
+
     // Create sender object
     $sender = new stdClass();
     $sender->firstname = $sender_firstname;
     $sender->lastname = $sender_lastname;
     $sender->email = $sender_email;
-    
+
     // Strip HTML tags for plain text version
     $plain_content = strip_tags($html_content);
-    
+
     // Use PHP's native mail function as a fallback if configured
     if (!empty($CFG->noreplyaddress) && $CFG->noreplyaddress !== 'support@pacificmedicaltraining.com') {
         $to = $user->email;
@@ -35,23 +35,23 @@ function send_html_email($user, $subject, $html_content, $sender_email = 'suppor
         $headers .= "Reply-To: $sender_email\r\n";
         $headers .= "MIME-Version: 1.0\r\n";
         $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-        
+
         // Attempt direct mail sending
         $mail_result = mail($to, $subject, $html_content, $headers);
-        
+
         // If mail sent successfully with direct method, return true
         if ($mail_result) {
             return true;
         }
     }
-    
+
     // Fallback to Moodle's email function - FIX: Don't pass headers as array
     try {
         // Capture output to avoid any interference
         ob_start();
         $result = email_to_user($user, $sender, $subject, $plain_content, $html_content);
         ob_end_clean();
-        
+
         return $result;
     } catch (Exception $e) {
         error_log("Email sending error: " . $e->getMessage());
@@ -197,7 +197,7 @@ if (empty($user)) {
 
     // Insert new user record
     $new_user->id = $DB->insert_record('user', $new_user);
-    
+
     // FIX: Retrieve full user record to ensure all properties are available
     $user = $DB->get_record('user', ['id' => $new_user->id]);
 
@@ -208,26 +208,26 @@ if (empty($user)) {
     <style>
       body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
       .container { max-width: 600px; margin: auto; padding: 20px; }
-      .header { 
-        background-color: #00467f; 
-        color: white; 
-        padding: 10px; 
-        text-align: center; 
+      .header {
+        background-color: #00467f;
+        color: white;
+        padding: 10px;
+        text-align: center;
         border-radius: 5px;
         height: 80px;
         vertical-align: middle;
         line-height: 80px;
       }
-      .header img { 
+      .header img {
         max-width: 200px;
         vertical-align: middle;
         display: inline-block;
       }
-      .credentials-box { 
-        background-color: #f4f4f4; 
-        padding: 10px; 
-        border-left: 5px solid #00467f; 
-        margin: 15px 0; 
+      .credentials-box {
+        background-color: #f4f4f4;
+        padding: 10px;
+        border-left: 5px solid #00467f;
+        margin: 15px 0;
       }
       .footer { margin-top: 20px; font-size: 0.9em; color: #777; }
     </style>
@@ -238,10 +238,10 @@ if (empty($user)) {
           <img src='https://pacificmedicaltraining.com/images/logo-pmt.png?v=3' alt='Pacific Medical Training' style='max-width: 200px; height: auto;'>
         </div>
         <p>Dear {$user->firstname} {$user->lastname},</p>
-        
+
         <p>Your new account has been created at Pacific Medical Training.</p>
         <p>Here are your login details:</p>
-        
+
         <blockquote class='credentials-box'>
           <strong>Email:</strong> {$user->email}<br>
           <strong>Password:</strong> {$plaintext_password}
@@ -258,7 +258,7 @@ if (empty($user)) {
         <p>If you have any concerns, please reply here.</p>
 
         <p>Thank you.</p>
-        
+
         <div class='footer'>
           <p>Pacific Medical Training<br>
           <a href='https://pacificmedicaltraining.com'>pacificmedicaltraining.com</a></p>
@@ -271,10 +271,10 @@ if (empty($user)) {
     // Send the new user welcome email
     $subject = "Your new account from Pacific Medical Training";
     $email_sent = send_html_email($user, $subject, $message1html);
-    
+
     // Wait to ensure email is sent before proceeding
     sleep(1);
-    
+
     // Log if email sending failed
     if (!$email_sent) {
         error_log("Failed to send welcome email to new user: {$user->email}");
@@ -326,17 +326,17 @@ $message2html = "
 <style>
   body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
   .container { max-width: 600px; margin: auto; padding: 20px; }
-  .header { 
-    background-color: #00467f; 
-    color: white; 
-    padding: 10px; 
-    text-align: center; 
+  .header {
+    background-color: #00467f;
+    color: white;
+    padding: 10px;
+    text-align: center;
     border-radius: 5px;
     height: 80px; /* Set a fixed height based on your needs */
     vertical-align: middle;
     line-height: 80px; /* Match the height value */
   }
-  .header img { 
+  .header img {
     max-width: 200px;
     vertical-align: middle;
     display: inline-block;
@@ -348,10 +348,10 @@ $message2html = "
 <body>
   <div class='container'>
     <div class='header'>
-      <img src='https://pacificmedicaltraining.com/images/logo-pmt.png?v=3' alt='Pacific Medical Training' style='max-width: 200px; height: auto;'>
+      <img src='https://pacificmedicaltraining.com/images/do-not-delete-this-logo.png' alt='Pacific Medical Training' style='max-width: 200px; height: auto;'>
     </div>
     <p>Dear {$user->firstname} {$user->lastname},</p>
-    
+
     <blockquote class='token-box'>
       You have received {$quantity} {$token_word} for the course <strong>{$course->fullname}</strong>.<br>
       Order Number: #{$order_number}
@@ -360,7 +360,7 @@ $message2html = "
     <p>You can view your tokens at: <a href='{$token_url}'>{$token_url}</a></p>
 
     <p>Thank you,<br>Pacific Medical Training</p>
-    
+
     <div class='footer'>
       <p>Pacific Medical Training<br>
       <a href='https://pacificmedicaltraining.com'>pacificmedicaltraining.com</a></p>
