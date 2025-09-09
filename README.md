@@ -1,6 +1,6 @@
-# Course Tokens Plugin
+# Course tokens plugin
 
-The Course Tokens Plugin offers a simple yet powerful way to manage course enrollments in Moodle using single-use tokens. With course tokens, users can quickly create an account (if they don’t already have one) and enroll in a course—no manual enrolment required.
+The course tokens plugin offers a simple yet powerful way to manage course enrollments in Moodle using single-use tokens. With course tokens, users can quickly create an account (if they don’t already have one) and enroll in a course—no manual enrolment required.
 
 This makes the plugin ideal for training providers, organizations, and institutions who need a secure, scalable, and flexible enrollment solution.
 
@@ -36,7 +36,7 @@ Supported Moodle versions: ![CI status](https://github.com/fulldecent/moodle-loc
   Assign tokens in bulk to teams or organizations for group enrollments.
 
 - **Seamless Moodle integration**
-  Enable Course Tokens as an enrollment method from `Site Administration > Plugins > Enrol plugins`.
+  Enable course tokens as an enrollment method from `Site Administration > Plugins > Enrol plugins`.
 
 Only administrators have access to this page, where they can manually generate tokens for course enrollment. This allows for customized enrollment management within the system.
 
@@ -144,14 +144,14 @@ This will generate a "Course Tokens" block with the same features and informatio
 
 Enable course tokens as an enrollment method by navigating to `Site administration > Plugins > Enrol plugins > Course Tokens`.
 
-## Placement of the Plugin
+## Placement of the plugin
 
-The Course Tokens plugin can be used in several ways:
+The course tokens plugin can be used in several ways:
 
 - **Direct enrollment via tokens**: Users redeem a token and are immediately enrolled in the associated course.
 - **User account creation**: If a learner doesn’t yet have a Moodle account, they can create one during token redemption.
-- **Dashboard and block access**: Learners can view their available tokens from the Token Dashboard page or by adding the Course Tokens block to their dashboard.
-- **API integration**: Training providers can integrate Course Tokens with their existing sales or CRM systems to issue tokens automatically.
+- **Dashboard and block access**: Learners can view their available tokens from the Token Dashboard page or by adding the course tokens block to their dashboard.
+- **API integration**: Training providers can integrate course tokens with their existing sales or CRM systems to issue tokens automatically.
 
 ## Quick start playground
 
