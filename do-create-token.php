@@ -267,7 +267,7 @@ $message2html = "
 <body>
   <div class='container'>
     <div class='header'>
-      <img src='https://pacificmedicaltraining.com/images/do-not-delete-this-logo.png' alt='Pacific Medical Training' style='max-width: 200px; height: auto;'>
+      <img src='https://pacificmedicaltraining.com/images/moodle-email-logo-required.png' alt='Pacific Medical Training' style='max-width: 200px; height: auto;'>
     </div>
     <p>Dear {$user->firstname} {$user->lastname},</p>
 
