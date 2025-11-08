@@ -125,11 +125,11 @@ if ($enrol_email) {
     if (!$enrol_user) {
         // Create a new user if none found with the provided email
         $new_user = new stdClass();
-        $new_user->auth = 'manual';
-        $new_user->confirmed = 1;
-        $new_user->mnethostid = $CFG->mnet_localhost_id;
-        $new_user->username = strtolower(explode('@', $enrol_email)[0]) . rand(1000, 9999);
-        $new_user->password = hash_internal_user_password('changeme');
+        $new_user->auth = 'manual'; // Authentication method set to 'manual' for simplicity
+        $new_user->confirmed = 1; // Confirm the user is active
+        $new_user->mnethostid = $CFG->mnet_localhost_id; // Moodle network ID
+        $new_user->username = strtolower(explode('@', $enrol_email)[0]) . rand(1000, 9999); // Generate a unique username
+        $new_user->password = hash_internal_user_password('changeme'); // Set a default password
         $new_user->email = $enrol_email;
         $new_user->firstname = $first_name;
         $new_user->lastname = $last_name;
