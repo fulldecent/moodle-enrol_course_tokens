@@ -11,6 +11,18 @@ $PAGE->set_context(context_user::instance($USER->id));
 $PAGE->set_title('Use Token');
 $PAGE->set_heading('Use Token');
 
+/**
+ * Ensure optional name fields exist to avoid debug notices.
+ */
+function ensure_optional_name_fields(&$user) {
+    $optional_fields = ['firstnamephonetic', 'lastnamephonetic', 'middlename', 'alternatename'];
+    foreach ($optional_fields as $field) {
+        if (!property_exists($user, $field)) {
+            $user->$field = '';
+        }
+    }
+}
+
 // Get the token code from URL parameter
 $token_code = required_param('token_code', PARAM_TEXT);
 
@@ -101,10 +113,12 @@ if ($enrol_email) {
         exit();
     }
 }
+
 $first_name = optional_param('first_name', 'New', PARAM_TEXT);
 $last_name = optional_param('last_name', 'User', PARAM_TEXT);
 
 // If an email is provided, either lookup an existing user or create a new one
+$is_new_user = false;
 if ($enrol_email) {
     $enrol_user = $DB->get_record('user', ['email' => $enrol_email, 'deleted' => 0, 'suspended' => 0]);
 
@@ -122,13 +136,21 @@ if ($enrol_email) {
         $new_user->timecreated = time(); // Set creation time
         $new_user->timemodified = time(); // Set modification time
 
+        // Add optional name fields to prevent notices
+        ensure_optional_name_fields($new_user);
+
         // Insert the new user into the database
         $new_user->id = $DB->insert_record('user', $new_user);
         $enrol_user = $new_user;
+        $is_new_user = true;
+    } else {
+        // Ensure optional fields exist for existing user
+        ensure_optional_name_fields($enrol_user);
     }
 } else {
     // Use the currently logged-in user if no email is provided
-    $enrol_user = $USER;
+    $enrol_user = clone $USER; // Clone to avoid modifying global $USER
+    ensure_optional_name_fields($enrol_user);
 
     // Check if the currently logged-in user is already enrolled in the course
     $enrolled_user = $DB->get_record_sql(
@@ -168,13 +190,15 @@ if ($USER->id !== $enrol_user->id) {
     $token_owner = $DB->get_record('user', ['id' => $USER->id]);
 
     if ($token_owner) {
+        ensure_optional_name_fields($token_owner);
+
         $notify_subject = "Your course token has been used";
         $notify_message = "
             Dear {$token_owner->firstname} {$token_owner->lastname},
 
             Your course token '{$token->code}' was just used to enroll {$enrol_user->firstname} {$enrol_user->lastname} ({$enrol_user->email}) in the course: {$course->fullname}.
 
-            The enrollment was successful. The enrolled user is {$enrol_user->firstname} {$enrol_user->lastname} will receive an email shortly with login instructions.
+            The enrollment was successful. The enrolled user {$enrol_user->firstname} {$enrol_user->lastname} will receive an email shortly with login instructions.
 
             Thank you,
             PMT Team
@@ -185,6 +209,7 @@ if ($USER->id !== $enrol_user->id) {
         $from_user->firstname = 'PMT';
         $from_user->lastname = 'instructor';
         $from_user->maildisplay = 1;
+        ensure_optional_name_fields($from_user);
 
         if (!email_to_user($token_owner, $from_user, $notify_subject, $notify_message)) {
             debugging("Failed to send token use notification email to token owner {$token_owner->email}");
@@ -215,15 +240,15 @@ if ($phone_number || $address) {
 
 // Send the appropriate email based on whether the user is new or existing
 $subject = "Welcome to the {$course->fullname} Course";
-if (isset($new_user)) {
+if ($is_new_user) {
     // New user email with username and default password
     $message = "
-        Dear {$new_user->firstname} {$new_user->lastname},
+        Dear {$enrol_user->firstname} {$enrol_user->lastname},
 
         Thank you for purchasing the {$course->fullname} course.
         Please log in to your student workroom at this link: https://learn.pacificmedicaltraining.com/login/
 
-        Your username is {$new_user->username} and your default password is \"changeme\". You will be asked to change your password on the first login. Once completed, please go to the \"My Course\" tab, and you will see your digital purchase - {$course->fullname}.
+        Your username is {$enrol_user->username} and your default password is \"changeme\". You will be asked to change your password on the first login. Once completed, please go to the \"My Course\" tab, and you will see your digital purchase - {$course->fullname}.
 
         Thank you.
     ";
@@ -247,6 +272,7 @@ $from_user->email = 'support@pacificmedicaltraining.com'; // Set the sender's em
 $from_user->firstname = 'PMT';
 $from_user->lastname = 'instructor';
 $from_user->maildisplay = 1; // Optional: Ensure the email address is visible
+ensure_optional_name_fields($from_user);
 
 // Send the email
 if (!email_to_user($enrol_user, $from_user, $subject, $message)) {
