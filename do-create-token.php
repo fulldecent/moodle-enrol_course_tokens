@@ -9,6 +9,18 @@ define('RETRY_DELAY_MS', 200000); // 200ms in microseconds
 define('EMAIL_RETRY_DELAY_MS', 500000); // 500ms for email retries
 
 /**
+ * Ensure optional name fields exist to avoid debug notices.
+ */
+function ensure_optional_name_fields(&$user) {
+  $optional_fields = ['firstnamephonetic', 'lastnamephonetic', 'middlename', 'alternatename'];
+  foreach ($optional_fields as $field) {
+    if (!property_exists($user, $field)) {
+      $user->$field = '';
+    }
+  }
+}
+
+/**
  * Generic retry wrapper for any operation
  *
  * @param callable $operation The operation to retry
@@ -60,6 +72,10 @@ function retry_operation($operation, $max_retries = MAX_RETRIES, $delay_microsec
 function send_html_email($user, $subject, $html_content, $sender)
 {
   global $CFG;
+
+  // Ensure both user and sender have all required name fields
+  ensure_optional_name_fields($user);
+  ensure_optional_name_fields($sender);
 
   // Wrap email sending in retry logic
   try {
@@ -173,7 +189,11 @@ if ($quantity < 1) {
 try {
   $existing_user = retry_operation(function() use ($email) {
     global $DB;
-    return $DB->get_record('user', ['email' => $email, 'deleted' => 0]);
+    $user = $DB->get_record('user', ['email' => $email, 'deleted' => 0]);
+    if ($user) {
+      ensure_optional_name_fields($user);
+    }
+    return $user;
   }, MAX_RETRIES, RETRY_DELAY_MS, "User lookup");
 } catch (Exception $e) {
   redirect(
@@ -260,6 +280,9 @@ if (empty($user)) {
       $new_user->timecreated = time();
       $new_user->timemodified = time();
 
+      // Add optional name fields before inserting
+      ensure_optional_name_fields($new_user);
+
       $new_user->id = $DB->insert_record('user', $new_user);
 
       // Get the full user record to ensure all properties are available
@@ -268,6 +291,9 @@ if (empty($user)) {
       if (!$user) {
         throw new Exception("Failed to retrieve newly created user");
       }
+
+      // Ensure optional fields on retrieved user
+      ensure_optional_name_fields($user);
 
       return $user;
 

@@ -1,6 +1,10 @@
 <?php
 require_once('/var/www/vhosts/moodle/config.php'); // Actual path to Moodle's config.php
 
+// Set PAGE context early to avoid Moodle warnings
+global $PAGE;
+$PAGE->set_context(context_system::instance());
+
 // Buffer all output to prevent any premature HTML
 ob_start();
 
@@ -8,6 +12,18 @@ ob_start();
 define('MAX_RETRIES', 3);
 define('RETRY_DELAY_MS', 200000); // 200ms in microseconds
 define('EMAIL_RETRY_DELAY_MS', 500000); // 500ms for email retries
+
+/**
+ * Ensure optional name fields exist to avoid debug notices.
+ */
+function ensure_optional_name_fields(&$user) {
+  $optional_fields = ['firstnamephonetic', 'lastnamephonetic', 'middlename', 'alternatename'];
+  foreach ($optional_fields as $field) {
+    if (!property_exists($user, $field)) {
+      $user->$field = '';
+    }
+  }
+}
 
 /**
  * Generic retry wrapper for any operation
@@ -70,6 +86,9 @@ function send_html_email(
 ) {
   global $CFG;
 
+  // Ensure user has all required name fields
+  ensure_optional_name_fields($user);
+
   // Wrap email sending in retry logic
   try {
     return retry_operation(function() use ($user, $subject, $html_content, $sender_email, $sender_firstname, $sender_lastname, $CFG) {
@@ -79,6 +98,7 @@ function send_html_email(
       $sender->firstname = $sender_firstname;
       $sender->lastname = $sender_lastname;
       $sender->email = $sender_email;
+      ensure_optional_name_fields($sender);
 
       // Strip HTML tags for plain text version
       $plain_content = strip_tags($html_content);
@@ -236,7 +256,11 @@ if ($quantity < 1) {
 try {
   $user = retry_operation(function() use ($email) {
     global $DB;
-    return $DB->get_record('user', ['email' => $email, 'deleted' => 0]);
+    $user = $DB->get_record('user', ['email' => $email, 'deleted' => 0]);
+    if ($user) {
+      ensure_optional_name_fields($user);
+    }
+    return $user;
   }, MAX_RETRIES, RETRY_DELAY_MS, "User lookup");
 } catch (Exception $e) {
   http_response_code(500);
@@ -310,6 +334,9 @@ if (empty($user)) {
       $new_user->timecreated = time();
       $new_user->timemodified = time();
 
+      // Add optional name fields before inserting
+      ensure_optional_name_fields($new_user);
+
       $new_user->id = $DB->insert_record('user', $new_user);
 
       // Retrieve full user record
@@ -318,6 +345,9 @@ if (empty($user)) {
       if (!$user) {
         throw new Exception("Failed to retrieve newly created user");
       }
+
+      // Ensure optional fields on retrieved user
+      ensure_optional_name_fields($user);
 
       return $user;
 

@@ -72,7 +72,8 @@ if (!empty($tokens)) {
             $enrolment = $DB->get_record('user_enrolments', ['id' => $token->user_enrolments_id], 'userid');
             if ($enrolment) {
                 // 👇 include email in the SELECT fields
-                $user = $DB->get_record('user', ['id' => $enrolment->userid], 'id, email, firstname, lastname, phone1, address');
+                $user = $DB->get_record('user', ['id' => $enrolment->userid],
+                'id, email, firstname, lastname, firstnamephonetic, lastnamephonetic, middlename, alternatename, phone1, address'); 
             }
         }
         $user_id = $user ? $user->id : null;
@@ -371,7 +372,8 @@ if (!empty($tokens)) {
                         ]);
 
                         // Get user's first and last name
-                        $user_fulldetails = $DB->get_record('user', ['id' => $user_id], 'firstname, lastname');
+                        $user_fulldetails = $DB->get_record('user', ['id' => $user_id],
+                        'firstname, lastname, firstnamephonetic, lastnamephonetic, middlename, alternatename');
                         $first_name = $user_fulldetails ? $user_fulldetails->firstname : '';
                         $last_name = $user_fulldetails ? $user_fulldetails->lastname : '';
 
