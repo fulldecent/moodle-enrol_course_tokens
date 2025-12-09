@@ -200,8 +200,8 @@ class block_course_tokens extends block_base
             if ($counts['available'] > 0 && $token) {
                 $assign_button = html_writer::tag('button', 'Assign', [
                     'class' => 'btn btn-success ml-2 btn-sm',
-                    'data-toggle' => 'modal',
-                    'data-target' => '#assignModal' . $counts['course_id']
+                    'data-bs-toggle' => 'modal',
+                    'data-bs-target' => '#assignModal' . $counts['course_id'],
                 ]);
             } else {
                 $assign_button = '';
