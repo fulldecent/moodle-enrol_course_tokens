@@ -73,7 +73,7 @@ if (!empty($tokens)) {
             if ($enrolment) {
                 // 👇 include email in the SELECT fields
                 $user = $DB->get_record('user', ['id' => $enrolment->userid],
-                'id, email, firstname, lastname, firstnamephonetic, lastnamephonetic, middlename, alternatename, phone1, address'); 
+                'id, email, firstname, lastname, firstnamephonetic, lastnamephonetic, middlename, alternatename, phone1, address');
             }
         }
         $user_id = $user ? $user->id : null;
@@ -137,8 +137,8 @@ if (!empty($tokens)) {
             // Render the clickable "Used by" text
             $modal_trigger = html_writer::tag('a', format_string($used_by), [
                 'href' => '#',
-                'data-toggle' => 'modal',
-                'data-target' => '#userModal' . $user_id,
+                'data-bs-toggle' => 'modal',
+                'data-bs-target' => '#userModal' . $user_id,
             ]);
 
             echo html_writer::tag('td', $modal_trigger);
@@ -191,8 +191,8 @@ if (!empty($tokens)) {
             // Enroll Somebody Else Button (modified to use same function)
             $share_button = html_writer::tag('button', 'Enroll Somebody Else', array(
                 'class' => 'btn btn-secondary',
-                'data-toggle' => 'modal',
-                'data-target' => '#enrollModal' . $token->id
+                'data-bs-toggle' => 'modal',
+                'data-bs-target' => '#enrollModal' . $token->id
             ));
             echo html_writer::tag('td', $share_button);
 
