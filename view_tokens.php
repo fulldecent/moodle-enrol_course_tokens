@@ -150,9 +150,7 @@ if (!empty($tokens)) {
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title" id="userModalLabel' . $user_id . '">User Details</h5>
-                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                <span aria-hidden="true">&times;</span>
-                            </button>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
                             <p><strong>Name:</strong> ' . fullname($user) . '</p>
@@ -161,7 +159,7 @@ if (!empty($tokens)) {
                             <p><strong>Address:</strong> ' . format_string($address) . '</p>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                         </div>
                     </div>
                 </div>
@@ -203,9 +201,7 @@ if (!empty($tokens)) {
                     <div class="modal-content">
                         <div class="modal-header">
                             <h5 class="modal-title" id="enrollModalLabel">Enroll Somebody Else</h5>
-                            <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                <span aria-hidden="true">&times;</span>
-                            </button>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
                             <form id="enrollForm' . $token->id . '">
@@ -233,7 +229,7 @@ if (!empty($tokens)) {
                             </form>
                         </div>
                         <div class="modal-footer">
-                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                             <button type="button" class="btn btn-primary" onclick="submitEnrollForm(' . $token->id . ')">Enroll</button>
                         </div>
                     </div>
