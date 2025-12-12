@@ -1,10 +1,15 @@
 <?php
 
+// Ensure the file is executed within the Moodle environment
 defined('MOODLE_INTERNAL') || die();
 
-require_once($CFG->dirroot . '/config.php'); // Use Moodle's dirroot for absolute path
+// Include Moodle libraries
 require_once($CFG->dirroot . '/lib/moodlelib.php');
+require_once($CFG->dirroot . '/lib/blocklib.php');
+
+require_once($CFG->dirroot . '/config.php'); // Use Moodle's dirroot for absolute path
 require_once($CFG->dirroot . '/blocks/moodleblock.class.php');
+require_once($CFG->libdir . '/weblib.php');
 
 class block_course_tokens extends block_base
 {
@@ -246,9 +251,7 @@ class block_course_tokens extends block_base
                         <div class="modal-content">
                             <div class="modal-header">
                                 <h5 class="modal-title" id="assignModalLabel' . $counts['course_id'] . '">Use token for ' . ucwords(strtolower($token->course_name)) . '</h5>
-                                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                                    <span aria-hidden="true">×</span>
-                                </button>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                             </div>
                             <div class="modal-body">
                                 <div id="initialOptions' . $token->id . '">
@@ -289,7 +292,7 @@ class block_course_tokens extends block_base
                             </div>
                             <div class="modal-footer">
                                 <div id="initialFooter' . $token->id . '">
-                                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                                 </div>
                                 <div id="enrollFormFooter' . $token->id . '" class="d-none">
                                     <button type="button" class="btn btn-success" onclick="submitEnrollForm(' . $token->id . ', \'other\')">Enroll</button>
@@ -307,7 +310,7 @@ class block_course_tokens extends block_base
 
         // Add link to view individual tokens
         $this->content->text .= html_writer::tag('a', 'View individual tokens', [
-            'href' => '/enrol/course_tokens/view_tokens.php',
+            'href' => (new moodle_url('/enrol/course_tokens/view_tokens.php'))->out(),
         ]);
 
         // Add the form and AJAX functionality
