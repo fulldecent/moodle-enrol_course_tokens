@@ -3,6 +3,9 @@ require_once('../../config.php');
 require_login();
 require_capability('moodle/site:config', context_system::instance());
 
+// Set the page context
+$PAGE->set_context(context_system::instance());
+
 // Configuration for retry attempts
 define('MAX_RETRIES', 3);
 define('RETRY_DELAY_MS', 200000); // 200ms in microseconds
@@ -572,9 +575,9 @@ if (!empty($group_account)) {
 
 // Redirect with success message
 redirect(
-  new moodle_url('/enrol/course_tokens/'),
-  get_string('tokenscreated', 'enrol_course_tokens', $quantity),
-  null,
-  \core\output\notification::NOTIFY_SUCCESS
+    new moodle_url('/enrol/course_tokens/'),
+    get_string('tokenscreated', 'enrol_course_tokens', $quantity),
+    null,
+    \core\output\notification::NOTIFY_SUCCESS
 );
 ?>
