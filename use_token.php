@@ -176,6 +176,41 @@ $roleId = $DB->get_record('role', ['shortname' => 'student'])->id; // Get the st
 $enrolPlugin = enrol_get_plugin('course_tokens'); // Get the course_tokens enrolment plugin
 $enrolPlugin->enrol_user($enrolinstance, $enrol_user->id, $roleId); // Enroll the user
 
+/**
+ * START: AUTOMATIC GROUP ASSIGNMENT FOR AHA COURSES
+ * * PURPOSE:
+ * As per GitHub Issue #375 (https://github.com/modern-training-solutions/learn.PacificMedicalTraining.com/issues/375), 
+ * the business logic for AHA courses (ACLS, BLS, PALS) has changed. 
+ * * Previously, students used a 'Group Choice' activity to select between 'Blended', 'Skills Only', or 'Full Class'.
+ * To simplify the user experience and standardize the learning path, we are now only offering the 'Full Class' 
+ * option. This code removes the need for manual group selection by automatically placing every new 
+ * enrollee into the "FULL class" group for these specific courses.
+ * * TARGET COURSES: 16 (ACLS), 18 (BLS), 20 (PALS)
+ * * @issue: https://github.com/modern-training-solutions/learn.PacificMedicalTraining.com/issues/375
+ */
+
+$target_course_ids = [16, 18, 20]; // AHA courses [acls, bls, pals]
+$group_name = 'FULL class'; // Add all users to the "FULL class" group by default
+
+if (in_array($course->id, $target_course_ids)) {
+    require_once($CFG->dirroot . '/group/lib.php');
+    
+    // Check if the group exists in this course, if not, create it
+    $group_id = groups_get_group_by_name($course->id, $group_name);
+    
+    if (!$group_id) {
+        $groupdata = new stdClass();
+        $groupdata->courseid = $course->id;
+        $groupdata->name = $group_name;
+        $group_id = groups_create_group($groupdata);
+    }
+    
+    // Check if user is already a member (to avoid duplicates)
+    if (!groups_is_member($group_id, $enrol_user->id)) {
+        groups_add_member($group_id, $enrol_user->id);
+    }
+}
+
 // Mark the token as used after successful enrolment
 $userEnrolment = $DB->get_record('user_enrolments', ['userid' => $enrol_user->id, 'enrolid' => $enrolinstance->id]);
 if ($userEnrolment) {
