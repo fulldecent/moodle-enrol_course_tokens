@@ -61,7 +61,7 @@ Course tokens can be generated securely via an API, which requires a valid secre
 ```bash
 curl 'https://learn.pacificmedicaltraining.com/enrol/course_tokens/api-do-create-token.php' \
   --header "Content-Type: application/json" \
-  --data-raw '{
+  --data-bs-raw '{
     "secret_key": "secret_key",
     "course_id": 5,
     "email": "minicurl@example.com",
@@ -82,7 +82,7 @@ curl 'https://learn.pacificmedicaltraining.com/enrol/course_tokens/api-do-create
 ```bash
 curl 'https://learn.pacificmedicaltraining.com/enrol/course_tokens/api-do-create-token.php' \
   --header "Content-Type: application/json" \
-  --data-raw '{
+  --data-bs-raw '{
     "secret_key": "secret_key",
     "course_id": 5,
     "email": "minicurl@example.com",

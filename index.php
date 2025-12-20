@@ -157,8 +157,8 @@ foreach ($tokens as $token) {
             // Render the clickable "Used by" text
             $modal_trigger = html_writer::tag('a', $used_by, [
                 'href' => '#',
-                'data-toggle' => 'modal',
-                'data-target' => '#userModal' . $enrollment->userid,
+                'data-bs-toggle' => 'modal',
+                'data-bs-target' => '#userModal' . $enrollment->userid,
             ]);
 
             echo '<td>' . $modal_trigger . '</td>';
@@ -171,7 +171,7 @@ foreach ($tokens as $token) {
                 <div class="modal-content">
                     <div class="modal-header">
                         <h5 class="modal-title" id="userModalLabel' . $enrollment->userid . '">User details</h5>
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
                             <span aria-hidden="true">&times;</span>
                         </button>
                     </div>
@@ -181,7 +181,7 @@ foreach ($tokens as $token) {
                         <p><strong>Address:</strong> ' . $address . '</p>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                     </div>
                 </div>
             </div>
@@ -203,8 +203,8 @@ foreach ($tokens as $token) {
                 data-bs-toggle="tooltip"
                 data-bs-placement="top"
                 title="Clicking this will unenroll ' . $user_email . ' from the course. All progress will be lost. The course token can be used again after unenrolling."
-                data-user-email="' . $user_email . '"
-                data-token-id="' . $token_id . '">
+                data-bs-user-email="' . $user_email . '"
+                data-bs-token-id="' . $token_id . '">
                 Unenroll
             </button>
         </td>';
@@ -225,7 +225,7 @@ foreach ($tokens as $token) {
                 data-bs-toggle="tooltip"
                 data-bs-placement="top"
                 title="Clicking this will unvoid the token, making it usable again."
-                data-token-id="' . $token->id . '">
+                data-bs-token-id="' . $token->id . '">
                 Unvoid Token
             </button>';
         } else {
@@ -237,9 +237,9 @@ foreach ($tokens as $token) {
                         data-bs-toggle="tooltip"
                         data-bs-placement="top"
                         title="' . $tooltipText . '"
-                        data-token-id="' . $token->id . '"
-                        data-user-email="' . ($user_email ?? '') . '"
-                        data-is-used="' . ($is_used ? '1' : '0') . '">
+                        data-bs-token-id="' . $token->id . '"
+                        data-bs-user-email="' . ($user_email ?? '') . '"
+                        data-bs-is-used="' . ($is_used ? '1' : '0') . '">
                         Void Token
                     </button>';
         }
@@ -379,8 +379,8 @@ const showModal = (modalId) => {
 const setupUnenrollHandlers = () => {
     document.querySelectorAll(".unenroll-btn").forEach(button => {
         button.addEventListener("click", () => {
-            const tokenId = button.getAttribute("data-token-id");
-            const userEmail = button.getAttribute("data-user-email");
+            const tokenId = button.getAttribute("data-bs-token-id");
+            const userEmail = button.getAttribute("data-bs-user-email");
 
             document.getElementById("unenrollTokenId").value = tokenId;
             document.getElementById("unenrollUserEmail").textContent = userEmail;
@@ -422,7 +422,7 @@ const setupUnenrollHandlers = () => {
 const setupVoidUnvoidHandlers = () => {
     document.querySelectorAll(".void-token-btn, .unvoid-token-btn").forEach(button => {
         button.addEventListener("click", function () {
-            const tokenId = this.getAttribute("data-token-id");
+            const tokenId = this.getAttribute("data-bs-token-id");
             const isVoiding = this.classList.contains("void-token-btn");
 
             if (isVoiding) {
@@ -439,8 +439,8 @@ const setupVoidUnvoidHandlers = () => {
 
 // Handle void token logic
 const handleVoidToken = (button, tokenId) => {
-    const userEmail = button.getAttribute("data-user-email");
-    const isUsed = button.getAttribute("data-is-used") === "1";
+    const userEmail = button.getAttribute("data-bs-user-email");
+    const isUsed = button.getAttribute("data-bs-is-used") === "1";
 
     document.getElementById("voidTokenId").value = tokenId;
     document.getElementById("voidTokenWarning").textContent = isUsed
@@ -512,7 +512,7 @@ const handleUnvoidToken = async (tokenId) => {
 
         const result = await response.json();
         if (result.success) {
-            updateTokenUI(document.querySelector(`[data-token-id="${tokenId}"]`), true);
+            updateTokenUI(document.querySelector(`[data-bs-token-id="${tokenId}"]`), true);
         } else {
             throw new Error(result.message);
         }
@@ -543,7 +543,7 @@ let selectedTokenId = null;
 // Step 1: Show modal when Unvoid Token button is clicked
 document.querySelectorAll(".unvoid-token-btn").forEach(button => {
     button.addEventListener("click", function() {
-        selectedTokenId = this.getAttribute("data-token-id");
+        selectedTokenId = this.getAttribute("data-bs-token-id");
 
         // Show the modal (Only shows the modal, does NOT unvoid yet)
         let unvoidModal = new bootstrap.Modal(document.getElementById("unvoidTokenModal"));
