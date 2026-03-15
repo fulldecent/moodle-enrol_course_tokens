@@ -7,9 +7,10 @@ defined('MOODLE_INTERNAL') || die();
 require_once($CFG->dirroot . '/lib/moodlelib.php');
 require_once($CFG->dirroot . '/lib/blocklib.php');
 
-require_once($CFG->dirroot . '/config.php'); // Use Moodle's dirroot for absolute path
+require_once($CFG->dirroot . '/config.php');
 require_once($CFG->dirroot . '/blocks/moodleblock.class.php');
-require_once($CFG->libdir . '/weblib.php');
+require_once($CFG->libdir  . '/weblib.php');
+require_once($CFG->dirroot . '/local/mts_hacks/lib.php');
 
 class block_course_tokens extends block_base
 {
@@ -26,11 +27,11 @@ class block_course_tokens extends block_base
             return $this->content;
         }
 
-        // Define the base URL for token operations at the beginning of the get_content method
+        // Define the base URL for token operations at the beginning of get_content
         $use_token_url = new moodle_url('/enrol/course_tokens/use_token.php');
 
         // SQL query to fetch tokens and course names
-        $sql = "SELECT t.*, u.email as enrolled_user_email, c.fullname as course_name
+        $sql = "SELECT t.*, u.email as enrolled_user_email, u.id as student_id, c.fullname as course_name
                 FROM {course_tokens} t
                 LEFT JOIN {user_enrolments} ue ON t.user_enrolments_id = ue.id
                 LEFT JOIN {user} u ON ue.userid = u.id
@@ -38,13 +39,29 @@ class block_course_tokens extends block_base
                 WHERE t.user_id = ? AND t.voided_at IS NULL
                 ORDER BY t.id DESC";
 
-        // Execute the SQL query and get the tokens
         $tokens = $DB->get_records_sql($sql, [$USER->id]);
+
+        // --- NEW LOGIC: Build timeline to isolate active vs historical ---
+        $token_timelines = [];
+        if ($tokens) {
+            foreach ($tokens as $t) {
+                if (!empty($t->used_on) && !empty($t->student_id)) {
+                    $key = $t->student_id . '_' . $t->course_id;
+                    $token_timelines[$key][] = $t;
+                }
+            }
+            foreach ($token_timelines as $key => $group) {
+                usort($token_timelines[$key], function($a, $b) {
+                    return $a->used_on <=> $b->used_on;
+                });
+            }
+        }
+        // -----------------------------------------------------------------
 
         // Ensure that content is initialized
         if (empty($this->content)) {
-            $this->content = new stdClass();
-            $this->content->text = '';
+            $this->content         = new stdClass();
+            $this->content->text   = '';
             $this->content->footer = '';
         }
 
@@ -52,77 +69,127 @@ class block_course_tokens extends block_base
         $course_data = [];
 
         foreach ($tokens as $token) {
-            $course_name = $token->course_name ?: 'Unknown Course'; // Use course_name from query
+            $course_name = $token->course_name ?: 'Unknown Course';
 
-            // Initialize course data if not already set
             if (!isset($course_data[$course_name])) {
                 $course_data[$course_name] = [
-                    'available' => 0,
-                    'assigned' => 0,
+                    'available'   => 0,
+                    'assigned'    => 0,
                     'in_progress' => 0,
-                    'completed' => 0,
-                    'failed' => 0,
-                    'course_id' => $token->course_id // Track course ID for modals
+                    'completed'   => 0,
+                    'failed'      => 0,
+                    'course_id'   => $token->course_id
                 ];
             }
 
-            // Get the user ID based on the email from the token
-            $user = null;
+            $user    = null;
+            $user_id = null;
             if (!empty($token->user_enrolments_id)) {
                 $enrolment = $DB->get_record('user_enrolments', ['id' => $token->user_enrolments_id], 'userid');
                 if ($enrolment) {
-                    // 👇 include email in the SELECT fields
-                    $user = $DB->get_record('user', ['id' => $enrolment->userid], 'id, email, firstname, lastname, phone1, address');
+                    $user    = $DB->get_record('user', ['id' => $enrolment->userid], 'id, email, firstname, lastname, phone1, address');
+                    $user_id = $user ? $user->id : null;
                 }
             }
-            $user_id = $user ? $user->id : null;
 
-            // Determine token status based on conditions
             if ($user_id) {
-                // Check if the user has viewed the course
-                $has_viewed_course = $DB->record_exists('logstore_standard_log', [
-                    'eventname' => '\core\event\course_viewed',
-                    'contextinstanceid' => $token->course_id,
-                    'userid' => $user_id
-                ]);
+                // Timeline Check
+                $is_active_token = true;
+                $next_used_on    = time();
+                $key             = $user_id . '_' . $token->course_id;
 
-                // Fetch the completion record for the user and course
-                $completion = $DB->get_record('course_completions', ['userid' => $user_id, 'course' => $token->course_id], 'timecompleted');
-
-                // Fetch the exam grade (if any) for the user in the course
-                $exam = $DB->get_record('quiz', ['course' => $token->course_id, 'name' => 'Exam'], 'id, grade');
-                $exam_grade = null;
-                if ($exam) {
-                    $exam_grade = $DB->get_record('quiz_grades', ['quiz' => $exam->id, 'userid' => $user_id], 'grade');
+                if (isset($token_timelines[$key])) {
+                    $timeline     = $token_timelines[$key];
+                    $latest_token = end($timeline);
+                    if ($token->id != $latest_token->id) {
+                        $is_active_token = false;
+                        foreach ($timeline as $index => $tt) {
+                            if ($tt->id == $token->id && isset($timeline[$index + 1])) {
+                                $next_used_on = $timeline[$index + 1]->used_on;
+                                break;
+                            }
+                        }
+                    }
                 }
 
-                // Update the course data based on status
-                if ($completion && $completion->timecompleted) {
-                    $course_data[$course_name]['completed']++;
-                } elseif ($exam_grade && $exam_grade->grade < 0.84 * $exam->grade) {
-                    $course_data[$course_name]['failed']++;
-                } elseif ($has_viewed_course) {
-                    $course_data[$course_name]['in_progress']++;
+                if (!$is_active_token) {
+                    // ----------------------------------------------------------
+                    // HISTORICAL TOKEN: read the locked final_status from the
+                    // archive instead of re-deriving it from deleted live data.
+                    //
+                    // This fixes the AHA bug where every historical token was
+                    // counted as "failed" because the assignment file (the only
+                    // completion evidence for AHA) had been wiped at reset time.
+                    // ----------------------------------------------------------
+                    $archived_record = $DB->get_record_sql("
+                        SELECT id, final_status
+                          FROM {local_mts_hacks_archive}
+                         WHERE userid = ? AND courseid = ?
+                           AND timeissued >= ? AND timeissued <= ?
+                         ORDER BY timeissued DESC
+                         LIMIT 1
+                    ", [$user_id, $token->course_id, $token->used_on, $next_used_on]);
+
+                    if ($archived_record) {
+                        switch ($archived_record->final_status) {
+                            case 'completed':
+                                $course_data[$course_name]['completed']++;
+                                break;
+                            case 'failed':
+                                $course_data[$course_name]['failed']++;
+                                break;
+                            case 'in_progress':
+                                $course_data[$course_name]['in_progress']++;
+                                break;
+                            case 'assigned':
+                                $course_data[$course_name]['assigned']++;
+                                break;
+                            default:
+                                // Pre-feature archive row with no final_status —
+                                // presence of the record still means it completed.
+                                $course_data[$course_name]['completed']++;
+                        }
+                    } else {
+                        $course_data[$course_name]['failed']++;
+                    }
+
                 } else {
-                    $course_data[$course_name]['assigned']++;
+                    // ----------------------------------------------------------
+                    // ACTIVE TOKEN: use the shared helper from mts_hacks/lib.php.
+                    //
+                    // This fixes the PMT bug where the block showed "In-progress"
+                    // even after a cert was issued, because the old code only
+                    // checked course_completions (which can lag) and never checked
+                    // customcert_issues (which is the real ground truth for PMT).
+                    // ----------------------------------------------------------
+                    $raw_status = local_mts_hacks_get_course_status($user_id, $token->course_id, $course_name, (int)$token->used_on);
+                    switch ($raw_status) {
+                        case 'completed':
+                            $course_data[$course_name]['completed']++;
+                            break;
+                        case 'failed':
+                            $course_data[$course_name]['failed']++;
+                            break;
+                        case 'in_progress':
+                            $course_data[$course_name]['in_progress']++;
+                            break;
+                        default: // 'assigned'
+                            $course_data[$course_name]['assigned']++;
+                    }
                 }
             } else {
-                // If the token is not used (no user ID), mark as available
                 $course_data[$course_name]['available']++;
             }
         }
 
-        // Add the custom style to the block's content
+        // Custom table styles
         $this->content->text .= html_writer::tag('style', '
-        .table th, .table td {
-            vertical-align: middle; /* Correct way to vertically center content */
-        }
+        .table th, .table td { vertical-align: middle; }
         ');
 
-        // Initial alert message
+        // Info alert
         $alert_message = 'You can enroll yourself or somebody else from your available inventory of courses. Please click the ASSIGN button below.';
 
-        // Check if there are any available tokens
         $has_available_tokens = false;
         foreach ($course_data as $counts) {
             if ($counts['available'] > 0) {
@@ -131,29 +198,20 @@ class block_course_tokens extends block_base
             }
         }
 
-        // Append expiration notice if there are available tokens
         if ($has_available_tokens) {
             $alert_message .= ' Token will expire in 90 days after order if not used.';
         }
 
-        // Add the combined alert to the block content
         $this->content->text .= html_writer::tag('p', $alert_message, ['class' => 'alert alert-info']);
 
-        // Flag to determine if user has any in-progress courses older than the defined limit
+        // Check for old in-progress enrolments (>60 days)
         $has_old_in_progress = false;
+        $days_limit          = 60;
+        $old_timestamp       = time() - ($days_limit * 24 * 60 * 60);
 
-        // Define the age threshold (in days) for considering a course as "old in-progress"
-        $days_limit = 60;
-
-        // Calculate the timestamp that is 60 days before now
-        $old_timestamp = time() - ($days_limit * 24 * 60 * 60);
-
-        // Loop through each course to check for old in-progress enrollments
         foreach ($course_data as $course_name => $counts) {
-            // Only proceed if there are in-progress courses
             if ($counts['in_progress'] > 0) {
-                // SQL query to find user enrolments older than 60 days and not voided
-                $sql = "SELECT ue.id
+                $sql    = "SELECT ue.id
                         FROM {user_enrolments} ue
                         JOIN {enrol} e ON e.id = ue.enrolid
                         JOIN {course_tokens} t ON t.user_enrolments_id = ue.id
@@ -161,10 +219,8 @@ class block_course_tokens extends block_base
                         AND t.user_id = ?
                         AND ue.timecreated < ?
                         AND t.voided_at IS NULL";
-
                 $params = [$counts['course_id'], $USER->id, $old_timestamp];
 
-                // If at least one old in-progress course is found, set the flag and stop further checking
                 if ($DB->record_exists_sql($sql, $params)) {
                     $has_old_in_progress = true;
                     break;
@@ -172,7 +228,6 @@ class block_course_tokens extends block_base
             }
         }
 
-        // Show alert only if the user has old in-progress courses
         if ($has_old_in_progress) {
             $this->content->text .= html_writer::tag(
                 'p',
@@ -181,37 +236,33 @@ class block_course_tokens extends block_base
             );
         }
 
-        // Output the data in the block
+        // Summary table
         $this->content->text .= html_writer::start_tag('table', array('class' => 'table table-striped table-hover table-bordered'));
 
-        // Table headers
         $this->content->text .= html_writer::start_tag('thead');
         $this->content->text .= html_writer::start_tag('tr');
-        $this->content->text .= html_writer::tag('th', 'Course',['class' => 'text-center col-2']);
-        $this->content->text .= html_writer::tag('th', 'Available inventory',['class' => 'text-center col-2']);
-        $this->content->text .= html_writer::tag('th', 'Assigned',['class' => 'text-center col-2']);
-        $this->content->text .= html_writer::tag('th', 'In-progress',['class' => 'text-center col-2']);
-        $this->content->text .= html_writer::tag('th', 'Completed',['class' => 'text-center col-2']);
-        $this->content->text .= html_writer::tag('th', 'Failed',['class' => 'text-center col-2']);
+        $this->content->text .= html_writer::tag('th', 'Course',              ['class' => 'text-center col-2']);
+        $this->content->text .= html_writer::tag('th', 'Available inventory', ['class' => 'text-center col-2']);
+        $this->content->text .= html_writer::tag('th', 'Assigned',            ['class' => 'text-center col-2']);
+        $this->content->text .= html_writer::tag('th', 'In-progress',         ['class' => 'text-center col-2']);
+        $this->content->text .= html_writer::tag('th', 'Completed',           ['class' => 'text-center col-2']);
+        $this->content->text .= html_writer::tag('th', 'Failed',              ['class' => 'text-center col-2']);
         $this->content->text .= html_writer::end_tag('tr');
         $this->content->text .= html_writer::end_tag('thead');
-
         $this->content->text .= html_writer::start_tag('tbody');
 
-        // Loop through course data and display counts
         foreach ($course_data as $course_name => $counts) {
             $this->content->text .= html_writer::start_tag('tr');
             $this->content->text .= html_writer::tag('td', format_string($course_name), ['class' => 'text-center col-2']);
 
-            // Filter available tokens for this course from the $tokens array
             $available_tokens = array_filter($tokens, function($token) use ($counts) {
                 return $token->course_id == $counts['course_id'] && $token->user_enrolments_id === null;
             });
-            $token = reset($available_tokens); // Get the first available token
+            $token = reset($available_tokens);
 
             if ($counts['available'] > 0 && $token) {
                 $assign_button = html_writer::tag('button', 'Assign', [
-                    'class' => 'btn btn-success ml-2 btn-sm',
+                    'class'          => 'btn btn-success ml-2 btn-sm',
                     'data-bs-toggle' => 'modal',
                     'data-bs-target' => '#assignModal' . $counts['course_id'],
                 ]);
@@ -220,72 +271,65 @@ class block_course_tokens extends block_base
             }
             $this->content->text .= html_writer::tag('td', $counts['available'] . $assign_button, ['class' => 'text-center col-2']);
 
-            // Assigned column with bg-success and text-white
-            $this->content->text .= html_writer::tag('td', $counts['assigned'], [
-                'class' => 'bg-success text-white text-center font-weight-bold col-2'
-            ]);
-
-            // In Progress column with bg-warning and text-white
-            $this->content->text .= html_writer::tag('td', $counts['in_progress'], [
-                'class' => 'bg-warning text-white text-center font-weight-bold col-2'
-            ]);
-
-            // Completed column with bg-primary and text-white
-            $this->content->text .= html_writer::tag('td', $counts['completed'], [
-                'class' => 'bg-primary text-white text-center font-weight-bold col-2'
-            ]);
-
-            // Failed column with bg-danger and text-white
-            $this->content->text .= html_writer::tag('td', $counts['failed'], [
-                'class' => 'bg-danger text-white text-center font-weight-bold col-2'
-            ]);
-
+            $this->content->text .= html_writer::tag('td', $counts['assigned'],    ['class' => 'bg-success text-white text-center font-weight-bold col-2']);
+            $this->content->text .= html_writer::tag('td', $counts['in_progress'], ['class' => 'bg-warning text-white text-center font-weight-bold col-2']);
+            $this->content->text .= html_writer::tag('td', $counts['completed'],   ['class' => 'bg-primary text-white text-center font-weight-bold col-2']);
+            $this->content->text .= html_writer::tag('td', $counts['failed'],      ['class' => 'bg-danger  text-white text-center font-weight-bold col-2']);
             $this->content->text .= html_writer::end_tag('tr');
 
-            // Generate modal if a token is available
+            // ---------------------------------------------------------------
+            // ASSIGN MODAL — shown when the "Assign" button is clicked
+            // Includes both "Enroll Yourself" and "Enroll Somebody Else" flows.
+            // ---------------------------------------------------------------
             if ($token) {
-                // Generate the modal content with the available token
                 $this->content->text .= '
-                <div class="modal fade" id="assignModal' . $counts['course_id'] . '" tabindex="-1" role="dialog" aria-labelledby="assignModalLabel' . $counts['course_id'] . '" aria-hidden="true">
+                <div class="modal fade" id="assignModal' . $counts['course_id'] . '" tabindex="-1" role="dialog"
+                     aria-labelledby="assignModalLabel' . $counts['course_id'] . '" aria-hidden="true">
                     <div class="modal-dialog" role="document">
                         <div class="modal-content">
                             <div class="modal-header">
-                                <h5 class="modal-title" id="assignModalLabel' . $counts['course_id'] . '">Use token for ' . ucwords(strtolower($token->course_name)) . '</h5>
+                                <h5 class="modal-title" id="assignModalLabel' . $counts['course_id'] . '">
+                                    Use token for ' . ucwords(strtolower($token->course_name)) . '
+                                </h5>
                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                             </div>
                             <div class="modal-body">
+                                <!-- Initial choice buttons -->
                                 <div id="initialOptions' . $token->id . '">
                                     <div class="d-flex justify-content-between">
-                                        <button type="button" class="btn btn-primary" onclick="enrollMyself(' . $token->id . ')">Enroll Yourself</button>
-                                        <button type="button" class="btn btn-success" onclick="showEnrollForm(' . $token->id . ')">Enroll Somebody Else</button>
+                                        <button type="button" class="btn btn-primary"
+                                                onclick="enrollMyself(' . $token->id . ')">Enroll Yourself</button>
+                                        <button type="button" class="btn btn-success"
+                                                onclick="showEnrollForm(' . $token->id . ')">Enroll Somebody Else</button>
                                     </div>
                                 </div>
-                                <!-- Form for enrolling somebody else -->
+
+                                <!-- Form for enrolling somebody else (hidden until showEnrollForm is called) -->
                                 <form id="enrollForm' . $token->id . '" action="' . $use_token_url->out() . '" method="POST">
-                                    <div id="firstNameGroup' . $token->id . '" class="form-group d-none">
+                                    <div id="firstNameGroup' . $token->id . '" class="form-group mb-2 d-none">
                                         <label for="firstName' . $token->id . '">First name</label>
                                         <input type="text" class="form-control" id="firstName' . $token->id . '" name="first_name" required>
                                     </div>
-                                    <div id="lastNameGroup' . $token->id . '" class="form-group d-none">
+                                    <div id="lastNameGroup' . $token->id . '" class="form-group mb-2 d-none">
                                         <label for="lastName' . $token->id . '">Last name</label>
                                         <input type="text" class="form-control" id="lastName' . $token->id . '" name="last_name" required>
                                     </div>
-                                    <div id="emailGroup' . $token->id . '" class="form-group d-none">
+                                    <div id="emailGroup' . $token->id . '" class="form-group mb-2 d-none">
                                         <label for="emailAddress' . $token->id . '">Email address</label>
                                         <input type="email" class="form-control" id="emailAddress' . $token->id . '" name="email" required>
                                     </div>
-                                    <div id="addressGroup' . $token->id . '" class="form-group d-none">
+                                    <div id="addressGroup' . $token->id . '" class="form-group mb-2 d-none">
                                         <label for="address' . $token->id . '">Address</label>
                                         <input type="text" class="form-control" id="address' . $token->id . '" name="address">
                                     </div>
-                                    <div id="phoneGroup' . $token->id . '" class="form-group d-none">
+                                    <div id="phoneGroup' . $token->id . '" class="form-group mb-2 d-none">
                                         <label for="phone' . $token->id . '">Phone number</label>
                                         <input type="tel" class="form-control" id="phone' . $token->id . '" name="phone_number">
                                     </div>
                                     <input type="hidden" name="token_code" value="' . $token->code . '">
                                 </form>
 
-                                <!-- Hidden form for enrolling myself -->
+                                <!-- Hidden "Enroll Myself" form -->
                                 <form id="enrollMyselfForm' . $token->id . '" class="d-none">
                                     <input type="hidden" name="token_code" value="' . $token->code . '">
                                 </form>
@@ -295,8 +339,10 @@ class block_course_tokens extends block_base
                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                                 </div>
                                 <div id="enrollFormFooter' . $token->id . '" class="d-none">
-                                    <button type="button" class="btn btn-success" onclick="submitEnrollForm(' . $token->id . ', \'other\')">Enroll</button>
-                                    <button type="button" class="btn btn-secondary" onclick="cancelEnrollForm(' . $token->id . ')">Cancel</button>
+                                    <button type="button" class="btn btn-success"
+                                            onclick="submitEnrollForm(' . $token->id . ', \'other\')">Enroll</button>
+                                    <button type="button" class="btn btn-secondary"
+                                            onclick="cancelEnrollForm(' . $token->id . ')">Cancel</button>
                                 </div>
                             </div>
                         </div>
@@ -308,108 +354,252 @@ class block_course_tokens extends block_base
         $this->content->text .= html_writer::end_tag('tbody');
         $this->content->text .= html_writer::end_tag('table');
 
-        // Add link to view individual tokens
+        // Link to the full token list
         $this->content->text .= html_writer::tag('a', 'View individual tokens', [
             'href' => (new moodle_url('/enrol/course_tokens/view_tokens.php'))->out(),
         ]);
 
-        // Add the form and AJAX functionality
+        // -------------------------------------------------------------------
+        // RECERTIFICATION WARNING MODAL (shared, single instance per page)
+        // JavaScript populates it with the correct message before showing it.
+        // -------------------------------------------------------------------
+        $this->content->text .= '
+        <!-- PMT Recertification Warning Modal -->
+        <div class="modal fade" id="recertWarningModal" tabindex="-1" aria-labelledby="recertWarningModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content border-0 shadow-lg">
+                    <div class="modal-header text-white" id="recertWarningModalHeader"
+                         style="border-radius:.375rem .375rem 0 0;">
+                        <h5 class="modal-title fw-bold" id="recertWarningModalLabel">
+                            <span id="recertWarningIcon" class="me-2"></span>
+                            <span id="recertWarningTitle"></span>
+                        </h5>
+                    </div>
+                    <div class="modal-body py-4 px-4">
+                        <p id="recertWarningMessage" class="mb-0"
+                           style="white-space:pre-line;line-height:1.6;"></p>
+                    </div>
+                    <div class="modal-footer border-top-0 pt-0">
+                        <button type="button" class="btn btn-outline-secondary px-4"
+                                data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn px-4 fw-semibold" id="recertConfirmBtn"
+                                style="background:#d9534f;color:#fff;">
+                            Yes, use token &amp; reset progress
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>';
+
+        // -------------------------------------------------------------------
+        // JAVASCRIPT
+        // -------------------------------------------------------------------
+        $use_token_url_str = $use_token_url->out(false);
+
         $this->content->text .= '
         <script>
-            const enrollMyself = (tokenId) => submitEnrollForm(tokenId, "myself");
+        (function () {
+            "use strict";
 
-            const toggleElementVisibility = (elementId, hide = true) => {
-                const element = document.getElementById(elementId);
-                if (element) {
-                    element.classList.toggle("d-none", hide);
-                }
+            // ---------------------------------------------------------------
+            // UI toggle helpers (show/hide "Enroll Somebody Else" form fields)
+            // ---------------------------------------------------------------
+            window.enrollMyself = (tokenId) => submitEnrollForm(tokenId, "myself");
+
+            window.toggleElementVisibility = (id, hide = true) => {
+                const el = document.getElementById(id);
+                if (el) el.classList.toggle("d-none", hide);
             };
 
-            const showEnrollForm = (tokenId) => {
-                // Hide initial elements
-                toggleElementVisibility(`initialOptions${tokenId}`);
-                toggleElementVisibility(`initialFooter${tokenId}`);
-
-                // Form group IDs
-                const formGroupIds = [
-                    "firstNameGroup",
-                    "lastNameGroup",
-                    "emailGroup",
-                    "addressGroup",
-                    "phoneGroup"
-                ].map(prefix => `${prefix}${tokenId}`);
-
-                // Show form groups
-                formGroupIds.forEach(groupId => toggleElementVisibility(groupId, false));
-
-                // Show enroll footer
-                toggleElementVisibility(`enrollFormFooter${tokenId}`, false);
+            window.showEnrollForm = (tokenId) => {
+                toggleElementVisibility("initialOptions"   + tokenId);
+                toggleElementVisibility("initialFooter"    + tokenId);
+                ["firstNameGroup","lastNameGroup","emailGroup","addressGroup","phoneGroup"]
+                    .forEach(p => toggleElementVisibility(p + tokenId, false));
+                toggleElementVisibility("enrollFormFooter" + tokenId, false);
             };
 
-            const cancelEnrollForm = (tokenId) => {
-                // Show initial elements
-                toggleElementVisibility(`initialOptions${tokenId}`, false);
-                toggleElementVisibility(`initialFooter${tokenId}`, false);
-
-                // Form group IDs
-                const formGroupIds = [
-                    "firstNameGroup",
-                    "lastNameGroup",
-                    "emailGroup",
-                    "addressGroup",
-                    "phoneGroup"
-                ].map(prefix => `${prefix}${tokenId}`);
-
-                // Hide form groups
-                formGroupIds.forEach(groupId => toggleElementVisibility(groupId));
-
-                // Hide enroll footer
-                toggleElementVisibility(`enrollFormFooter${tokenId}`);
+            window.cancelEnrollForm = (tokenId) => {
+                toggleElementVisibility("initialOptions"   + tokenId, false);
+                toggleElementVisibility("initialFooter"    + tokenId, false);
+                ["firstNameGroup","lastNameGroup","emailGroup","addressGroup","phoneGroup"]
+                    .forEach(p => toggleElementVisibility(p + tokenId));
+                toggleElementVisibility("enrollFormFooter" + tokenId);
             };
 
-            const submitEnrollForm = async (tokenId, type) => {
-                const formId = type === "myself" ? `enrollMyselfForm${tokenId}` : `enrollForm${tokenId}`;
+            // ---------------------------------------------------------------
+            // submitEnrollForm(tokenId, type, confirmRenewal)
+            //   tokenId        — numeric token row ID
+            //   type           — "myself" | "other"
+            //   confirmRenewal — 0 (default) | 1 (user confirmed recert modal)
+            // ---------------------------------------------------------------
+            window.submitEnrollForm = async function (tokenId, type, confirmRenewal) {
+                type           = type           || "other";
+                confirmRenewal = confirmRenewal || 0;
+
+                const formId = (type === "myself")
+                    ? "enrollMyselfForm" + tokenId
+                    : "enrollForm"       + tokenId;
+
                 const form = document.getElementById(formId);
+                if (!form) return;
 
                 if (type === "other" && !form.checkValidity()) {
-                    alert("Please fill out all required fields.");
+                    showAlertBanner("Please fill out all required fields.", "danger");
                     return;
                 }
 
                 const formData = new FormData(form);
+                if (confirmRenewal) {
+                    formData.set("confirm_renewal", "1");
+                }
+
+                // BEST PRACTICE: Always prefix AJAX requests with M.cfg.wwwroot
+                const targetUrl = M.cfg.wwwroot + "/enrol/course_tokens/use_token.php";
 
                 try {
-                    const response = await fetch("' . $use_token_url->out() . '", {
-                        method: "POST",
-                        body: formData
+                    const resp = await fetch(targetUrl, {
+                        method : "POST",
+                        body   : formData
                     });
-
-                    const text = await response.text();
+                    const text = await resp.text();
+                    console.log("[course_tokens] use_token.php raw response:", text);
                     let data;
-
                     try {
                         data = JSON.parse(text);
-                    } catch (error) {
-                        alert("Unexpected response from server. Please contact at support@pacificmedicaltraining.com");
-                        location.reload();
+                    } catch (parseErr) {
+                        console.error("[course_tokens] JSON parse failed. Raw server output:", text);
+                        showAlertBanner("Server returned an unexpected response. Check the browser console (F12) for details.", "danger");
                         return;
                     }
-
-                    if (data.status === "error" && data.message) {
-                        alert(data.message);
-                        location.reload();
-                    } else if (data.status === "redirect" && data.redirect_url) {
-                        alert(data.message);
-                        window.location.href = data.redirect_url;
-                    } else {
-                        alert("Enrollment successful!");
-                        location.reload();
-                    }
-                } catch (error) {
-                    alert("An error occurred while processing the enrollment.");
-                    location.reload();
+                    handleResponse(data, tokenId, type);
+                } catch (networkErr) {
+                    console.error("[course_tokens] fetch() network error:", networkErr);
+                    showAlertBanner("A network error occurred. Please check your connection and try again.", "danger");
                 }
             };
+
+            // ---------------------------------------------------------------
+            // handleResponse — routes JSON reply from use_token.php
+            // ---------------------------------------------------------------
+            function handleResponse(data, tokenId, type) {
+                switch (data.status) {
+                    case "redirect":
+                        showAlertBanner(data.message || "Enrolment successful!", "success");
+                        setTimeout(() => { window.location.href = data.redirect_url; }, 1800);
+                        break;
+
+                    case "success":
+                        showAlertBanner(data.message || "Enrolment successful!", "success");
+                        setTimeout(() => location.reload(), 1800);
+                        break;
+
+                    case "confirm_early_renewal":
+                        // Amber warning: certificate still valid > 90 days
+                        showRecertModal({
+                            title       : "⚠ Early Renewal Warning",
+                            message     : data.message,
+                            headerColor : "#f0ad4e",
+                            tokenId     : tokenId,
+                            enrollType  : type
+                        });
+                        break;
+
+                    case "confirm_renewal":
+                        // Red warning: certificate expiring soon or already expired
+                        showRecertModal({
+                            title       : "🔄 Reset Progress & Recertify",
+                            message     : data.message,
+                            headerColor : "#d9534f",
+                            tokenId     : tokenId,
+                            enrollType  : type
+                        });
+                        break;
+
+                    case "error":
+                    default:
+                        showAlertBanner(data.message || "An unexpected error occurred.", "danger");
+                        setTimeout(() => location.reload(), 3000);
+                        break;
+                }
+            }
+
+            // ---------------------------------------------------------------
+            // Bootstrap modal helpers — compatible with BS5 global, BS4/jQuery,
+            // and Moodle themes that expose neither as a plain global.
+            // ---------------------------------------------------------------
+            function pmtModalShow(el) {
+                if (typeof bootstrap !== "undefined" && bootstrap.Modal) {
+                    new bootstrap.Modal(el, { backdrop: "static", keyboard: false }).show();
+                } else if (typeof jQuery !== "undefined") {
+                    jQuery(el).modal({ backdrop: "static", keyboard: false });
+                    jQuery(el).modal("show");
+                }
+            }
+            function pmtModalHide(el) {
+                if (typeof bootstrap !== "undefined" && bootstrap.Modal) {
+                    const m = bootstrap.Modal.getInstance(el);
+                    if (m) m.hide();
+                } else if (typeof jQuery !== "undefined") {
+                    jQuery(el).modal("hide");
+                }
+            }
+
+            // ---------------------------------------------------------------
+            // showRecertModal — populates & opens the shared Bootstrap modal
+            // ---------------------------------------------------------------
+            function showRecertModal(opts) {
+                const modalEl    = document.getElementById("recertWarningModal");
+                const headerEl   = document.getElementById("recertWarningModalHeader");
+                const titleEl    = document.getElementById("recertWarningTitle");
+                const iconEl     = document.getElementById("recertWarningIcon");
+                const messageEl  = document.getElementById("recertWarningMessage");
+                const confirmBtn = document.getElementById("recertConfirmBtn");
+
+                if (!modalEl) return;
+
+                headerEl.style.backgroundColor = opts.headerColor || "#d9534f";
+                iconEl.textContent             = "";              // icon already in title string
+                titleEl.textContent            = opts.title;
+                messageEl.textContent          = opts.message;
+
+                // Replace button to avoid stacking event listeners
+                const newBtn = confirmBtn.cloneNode(true);
+                confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
+                newBtn.addEventListener("click", function () {
+                    pmtModalHide(modalEl);
+                    submitEnrollForm(opts.tokenId, opts.enrollType, 1);
+                });
+
+                pmtModalShow(modalEl);
+            }
+
+            // ---------------------------------------------------------------
+            // showAlertBanner — non-blocking in-page notification
+            // ---------------------------------------------------------------
+            function showAlertBanner(msg, type) {
+                let container = document.getElementById("pmt-block-alert-container");
+                if (!container) {
+                    container = document.createElement("div");
+                    container.id = "pmt-block-alert-container";
+                    container.style.cssText = "position:fixed;top:1rem;right:1rem;z-index:9999;min-width:300px;";
+                    document.body.appendChild(container);
+                }
+                const alertDiv = document.createElement("div");
+                alertDiv.className = `alert alert-${type} alert-dismissible fade show shadow`;
+                alertDiv.role      = "alert";
+                alertDiv.innerHTML = escHtml(msg) +
+                    `<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>`;
+                container.appendChild(alertDiv);
+                setTimeout(() => alertDiv.remove(), 6000);
+            }
+
+            function escHtml(str) {
+                const d = document.createElement("div");
+                d.appendChild(document.createTextNode(str || ""));
+                return d.innerHTML;
+            }
+        }());
         </script>';
 
         return $this->content;
