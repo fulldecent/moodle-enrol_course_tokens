@@ -266,13 +266,53 @@ if (!empty($tokens)) {
         // Show "Enroll Myself" and "Enroll Somebody Else" buttons for available tokens
         if ($status === 'Available') {
             $use_token_url = new moodle_url('/enrol/course_tokens/use_token.php');
-            echo '
-            <td>
-                <form id="enrollMyselfForm' . $token->id . '">
-                    <input type="hidden" name="token_code" value="' . $token->code . '">
-                    <button type="button" class="btn btn-primary" onclick="submitEnrollForm(' . $token->id . ', \'myself\')">Enroll Myself</button>
-                </form>
-            </td>';
+            
+            // --- NEW LOGIC: Phone Requirement ---
+            $is_phone_required_course = in_array($token->course_id, [13, 15]);
+            $phone_required_attr = $is_phone_required_course ? 'required' : '';
+            $phone_label_asterisk = $is_phone_required_course ? ' <span class="text-danger">*</span>' : '';
+            $needs_phone_for_myself = $is_phone_required_course && empty($USER->phone1);
+            // ------------------------------------
+
+            if ($needs_phone_for_myself) {
+                echo '
+                <td>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#enrollMyselfModal' . $token->id . '">Enroll Myself</button>
+
+                    <div class="modal fade" id="enrollMyselfModal' . $token->id . '" tabindex="-1" role="dialog" aria-labelledby="enrollMyselfModalLabel' . $token->id . '" aria-hidden="true">
+                        <div class="modal-dialog" role="document">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title" id="enrollMyselfModalLabel' . $token->id . '">Phone Number Required</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                                </div>
+                                <div class="modal-body">
+                                    <form id="enrollMyselfForm' . $token->id . '">
+                                        <p>Please provide your phone number to continue enrollment for this course.</p>
+                                        <div class="form-group mb-2">
+                                            <label for="myselfPhone' . $token->id . '">Phone number <span class="text-danger">*</span></label>
+                                            <input type="tel" class="form-control" id="myselfPhone' . $token->id . '" name="phone_number" required>
+                                        </div>
+                                        <input type="hidden" name="token_code" value="' . $token->code . '">
+                                    </form>
+                                </div>
+                                <div class="modal-footer">
+                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                                    <button type="button" class="btn btn-primary" onclick="submitEnrollForm(' . $token->id . ', \'myself\')">Enroll</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </td>';
+            } else {
+                echo '
+                <td>
+                    <form id="enrollMyselfForm' . $token->id . '">
+                        <input type="hidden" name="token_code" value="' . $token->code . '">
+                        <button type="button" class="btn btn-primary" onclick="submitEnrollForm(' . $token->id . ', \'myself\')">Enroll Myself</button>
+                    </form>
+                </td>';
+            }
 
             // Enroll Somebody Else Button
             $share_button = html_writer::tag('button', 'Enroll Somebody Else', array(
@@ -310,8 +350,8 @@ if (!empty($tokens)) {
                                     <input type="text" class="form-control" id="address' . $token->id . '" name="address">
                                 </div>
                                 <div class="form-group mb-2">
-                                    <label for="phone' . $token->id . '">Phone number</label>
-                                    <input type="tel" class="form-control" id="phone' . $token->id . '" name="phone_number">
+                                    <label for="phone' . $token->id . '">Phone number' . $phone_label_asterisk . '</label>
+                                    <input type="tel" class="form-control" id="phone' . $token->id . '" name="phone_number" ' . $phone_required_attr . '>
                                 </div>
                                 <input type="hidden" name="token_code" value="' . $token->code . '">
                             </form>
@@ -566,7 +606,6 @@ echo $OUTPUT->footer();
 // Injected once; JavaScript populates it dynamically before showing it.
 // ---------------------------------------------------------------------------
 echo '
-<!-- PMT Recertification Warning Modal -->
 <div class="modal fade" id="recertWarningModal" tabindex="-1" aria-labelledby="recertWarningModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
@@ -616,8 +655,12 @@ echo '
         const form = document.getElementById(formId);
         if (!form) return;
 
-        if (type === "other" && !form.checkValidity()) {
-            showFormError("Please fill out all required fields.");
+        if (!form.checkValidity()) {
+            if (typeof form.reportValidity === "function") {
+                form.reportValidity(); // Highlights the specific missing field natively
+            } else {
+                showFormError("Please fill out all required fields.");
+            }
             return;
         }
 

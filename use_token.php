@@ -113,6 +113,20 @@ if ($enrol_email) {
 }
 
 // ---------------------------------------------------------------------------
+// VALIDATE PHONE NUMBER REQUIREMENT
+// ---------------------------------------------------------------------------
+// Extract phone number earlier for validation
+$phone_number = isset($_REQUEST['phone_number']) ? optional_param('phone_number', '', PARAM_TEXT) : null;
+
+// Require phone for CPRFAAED (13) and CPRFAAED-Spanish (15)
+if (in_array($course->id, [13, 15])) {
+    // Check if phone number is empty in the form AND the user's profile
+    if (empty($phone_number) && empty($enrol_user->phone1)) {
+        json_response(['status' => 'error', 'message' => 'A phone number is required to enroll in this course.']);
+    }
+}
+
+// ---------------------------------------------------------------------------
 // RECERTIFICATION GATE
 //
 // If the user is already enrolled we need their consent before wiping anything.
@@ -267,8 +281,7 @@ if ($USER->id !== $enrol_user->id) {
 // ---------------------------------------------------------------------------
 // UPDATE PHONE / ADDRESS if provided
 // ---------------------------------------------------------------------------
-$phone_number = isset($_REQUEST['phone_number']) ? optional_param('phone_number', '', PARAM_TEXT) : null;
-$address      = isset($_REQUEST['address'])       ? optional_param('address',      '', PARAM_TEXT) : null;
+$address = isset($_REQUEST['address']) ? optional_param('address', '', PARAM_TEXT) : null;
 
 if ($phone_number || $address) {
     $data     = new stdClass();
