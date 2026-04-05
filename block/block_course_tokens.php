@@ -113,14 +113,7 @@ class block_course_tokens extends block_base
                 }
 
                 if (!$is_active_token) {
-                    // ----------------------------------------------------------
-                    // HISTORICAL TOKEN: read the locked final_status from the
-                    // archive instead of re-deriving it from deleted live data.
-                    //
-                    // This fixes the AHA bug where every historical token was
-                    // counted as "failed" because the assignment file (the only
-                    // completion evidence for AHA) had been wiped at reset time.
-                    // ----------------------------------------------------------
+                    // HISTORICAL TOKEN
                     $archived_record = $DB->get_record_sql("
                         SELECT id, final_status
                           FROM {local_mts_hacks_archive}
@@ -145,8 +138,6 @@ class block_course_tokens extends block_base
                                 $course_data[$course_name]['assigned']++;
                                 break;
                             default:
-                                // Pre-feature archive row with no final_status —
-                                // presence of the record still means it completed.
                                 $course_data[$course_name]['completed']++;
                         }
                     } else {
@@ -154,14 +145,7 @@ class block_course_tokens extends block_base
                     }
 
                 } else {
-                    // ----------------------------------------------------------
-                    // ACTIVE TOKEN: use the shared helper from mts_hacks/lib.php.
-                    //
-                    // This fixes the PMT bug where the block showed "In-progress"
-                    // even after a cert was issued, because the old code only
-                    // checked course_completions (which can lag) and never checked
-                    // customcert_issues (which is the real ground truth for PMT).
-                    // ----------------------------------------------------------
+                    // ACTIVE TOKEN
                     $raw_status = local_mts_hacks_get_course_status($user_id, $token->course_id, $course_name, (int)$token->used_on);
                     switch ($raw_status) {
                         case 'completed':
@@ -251,6 +235,10 @@ class block_course_tokens extends block_base
         $this->content->text .= html_writer::end_tag('thead');
         $this->content->text .= html_writer::start_tag('tbody');
 
+        // IMPORTANT: Buffer the modals here so they are rendered OUTSIDE the table HTML
+        // This prevents browsers from instantly stripping/auto-closing the <form> tags.
+        $modals_html = '';
+
         foreach ($course_data as $course_name => $counts) {
             $this->content->text .= html_writer::start_tag('tr');
             $this->content->text .= html_writer::tag('td', format_string($course_name), ['class' => 'text-center col-2']);
@@ -278,11 +266,31 @@ class block_course_tokens extends block_base
             $this->content->text .= html_writer::end_tag('tr');
 
             // ---------------------------------------------------------------
-            // ASSIGN MODAL — shown when the "Assign" button is clicked
-            // Includes both "Enroll Yourself" and "Enroll Somebody Else" flows.
+            // ASSIGN MODAL — Building the string to append LATER
             // ---------------------------------------------------------------
             if ($token) {
-                $this->content->text .= '
+
+                // --- NEW LOGIC: Phone Requirement ---
+                $is_phone_required_course = in_array($counts['course_id'], [13, 15]);
+                $phone_required_attr = $is_phone_required_course ? 'required' : '';
+                $phone_label_asterisk = $is_phone_required_course ? ' <span class="text-danger">*</span>' : '';
+                $needs_phone_for_myself = $is_phone_required_course && empty($USER->phone1);
+
+                if ($needs_phone_for_myself) {
+                    $enroll_myself_action = "showEnrollMyselfForm({$token->id})";
+                    $myself_phone_field = '
+                        <div id="myselfPhoneGroup' . $token->id . '" class="form-group mb-2 mt-3 text-start">
+                            <p>Please provide your phone number to continue enrollment for this course.</p>
+                            <label for="myselfPhone' . $token->id . '" class="fw-bold">Phone number <span class="text-danger">*</span></label>
+                            <input type="tel" class="form-control" id="myselfPhone' . $token->id . '" name="phone_number" required>
+                        </div>';
+                } else {
+                    $enroll_myself_action = "enrollMyself({$token->id})";
+                    $myself_phone_field = '';
+                }
+                // ------------------------------------
+
+                $modals_html .= '
                 <div class="modal fade" id="assignModal' . $counts['course_id'] . '" tabindex="-1" role="dialog"
                      aria-labelledby="assignModalLabel' . $counts['course_id'] . '" aria-hidden="true">
                     <div class="modal-dialog" role="document">
@@ -294,44 +302,42 @@ class block_course_tokens extends block_base
                                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                             </div>
                             <div class="modal-body">
-                                <!-- Initial choice buttons -->
                                 <div id="initialOptions' . $token->id . '">
                                     <div class="d-flex justify-content-between">
                                         <button type="button" class="btn btn-primary"
-                                                onclick="enrollMyself(' . $token->id . ')">Enroll Yourself</button>
+                                                onclick="' . $enroll_myself_action . '">Enroll Yourself</button>
                                         <button type="button" class="btn btn-success"
                                                 onclick="showEnrollForm(' . $token->id . ')">Enroll Somebody Else</button>
                                     </div>
                                 </div>
 
-                                <!-- Form for enrolling somebody else (hidden until showEnrollForm is called) -->
                                 <form id="enrollForm' . $token->id . '" action="' . $use_token_url->out() . '" method="POST">
-                                    <div id="firstNameGroup' . $token->id . '" class="form-group mb-2 d-none">
-                                        <label for="firstName' . $token->id . '">First name</label>
+                                    <div id="firstNameGroup' . $token->id . '" class="form-group mb-2 d-none text-start">
+                                        <label for="firstName' . $token->id . '" class="fw-bold">First name</label>
                                         <input type="text" class="form-control" id="firstName' . $token->id . '" name="first_name" required>
                                     </div>
-                                    <div id="lastNameGroup' . $token->id . '" class="form-group mb-2 d-none">
-                                        <label for="lastName' . $token->id . '">Last name</label>
+                                    <div id="lastNameGroup' . $token->id . '" class="form-group mb-2 d-none text-start">
+                                        <label for="lastName' . $token->id . '" class="fw-bold">Last name</label>
                                         <input type="text" class="form-control" id="lastName' . $token->id . '" name="last_name" required>
                                     </div>
-                                    <div id="emailGroup' . $token->id . '" class="form-group mb-2 d-none">
-                                        <label for="emailAddress' . $token->id . '">Email address</label>
+                                    <div id="emailGroup' . $token->id . '" class="form-group mb-2 d-none text-start">
+                                        <label for="emailAddress' . $token->id . '" class="fw-bold">Email address</label>
                                         <input type="email" class="form-control" id="emailAddress' . $token->id . '" name="email" required>
                                     </div>
-                                    <div id="addressGroup' . $token->id . '" class="form-group mb-2 d-none">
-                                        <label for="address' . $token->id . '">Address</label>
+                                    <div id="addressGroup' . $token->id . '" class="form-group mb-2 d-none text-start">
+                                        <label for="address' . $token->id . '" class="fw-bold">Address</label>
                                         <input type="text" class="form-control" id="address' . $token->id . '" name="address">
                                     </div>
-                                    <div id="phoneGroup' . $token->id . '" class="form-group mb-2 d-none">
-                                        <label for="phone' . $token->id . '">Phone number</label>
-                                        <input type="tel" class="form-control" id="phone' . $token->id . '" name="phone_number">
+                                    <div id="phoneGroup' . $token->id . '" class="form-group mb-2 d-none text-start">
+                                        <label for="phone' . $token->id . '" class="fw-bold">Phone number' . $phone_label_asterisk . '</label>
+                                        <input type="tel" class="form-control" id="phone' . $token->id . '" name="phone_number" ' . $phone_required_attr . '>
                                     </div>
                                     <input type="hidden" name="token_code" value="' . $token->code . '">
                                 </form>
 
-                                <!-- Hidden "Enroll Myself" form -->
                                 <form id="enrollMyselfForm' . $token->id . '" class="d-none">
                                     <input type="hidden" name="token_code" value="' . $token->code . '">
+                                    ' . $myself_phone_field . '
                                 </form>
                             </div>
                             <div class="modal-footer">
@@ -344,6 +350,12 @@ class block_course_tokens extends block_base
                                     <button type="button" class="btn btn-secondary"
                                             onclick="cancelEnrollForm(' . $token->id . ')">Cancel</button>
                                 </div>
+                                <div id="enrollMyselfFooter' . $token->id . '" class="d-none">
+                                    <button type="button" class="btn btn-success"
+                                            onclick="submitEnrollForm(' . $token->id . ', \'myself\')">Enroll</button>
+                                    <button type="button" class="btn btn-secondary"
+                                            onclick="cancelEnrollMyselfForm(' . $token->id . ')">Cancel</button>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -353,6 +365,9 @@ class block_course_tokens extends block_base
 
         $this->content->text .= html_writer::end_tag('tbody');
         $this->content->text .= html_writer::end_tag('table');
+
+        // APPEND MODALS HERE (Outside the table boundaries)
+        $this->content->text .= $modals_html;
 
         // Link to the full token list
         $this->content->text .= html_writer::tag('a', 'View individual tokens', [
@@ -364,7 +379,6 @@ class block_course_tokens extends block_base
         // JavaScript populates it with the correct message before showing it.
         // -------------------------------------------------------------------
         $this->content->text .= '
-        <!-- PMT Recertification Warning Modal -->
         <div class="modal fade" id="recertWarningModal" tabindex="-1" aria-labelledby="recertWarningModalLabel" aria-hidden="true">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content border-0 shadow-lg">
@@ -402,7 +416,7 @@ class block_course_tokens extends block_base
             "use strict";
 
             // ---------------------------------------------------------------
-            // UI toggle helpers (show/hide "Enroll Somebody Else" form fields)
+            // UI toggle helpers (show/hide forms)
             // ---------------------------------------------------------------
             window.enrollMyself = (tokenId) => submitEnrollForm(tokenId, "myself");
 
@@ -411,6 +425,7 @@ class block_course_tokens extends block_base
                 if (el) el.classList.toggle("d-none", hide);
             };
 
+            // "Enroll Somebody Else" 
             window.showEnrollForm = (tokenId) => {
                 toggleElementVisibility("initialOptions"   + tokenId);
                 toggleElementVisibility("initialFooter"    + tokenId);
@@ -425,6 +440,21 @@ class block_course_tokens extends block_base
                 ["firstNameGroup","lastNameGroup","emailGroup","addressGroup","phoneGroup"]
                     .forEach(p => toggleElementVisibility(p + tokenId));
                 toggleElementVisibility("enrollFormFooter" + tokenId);
+            };
+
+            // "Enroll Myself" (When Phone Input is Required)
+            window.showEnrollMyselfForm = (tokenId) => {
+                toggleElementVisibility("initialOptions"     + tokenId);
+                toggleElementVisibility("initialFooter"      + tokenId);
+                toggleElementVisibility("enrollMyselfForm"   + tokenId, false);
+                toggleElementVisibility("enrollMyselfFooter" + tokenId, false);
+            };
+
+            window.cancelEnrollMyselfForm = (tokenId) => {
+                toggleElementVisibility("initialOptions"     + tokenId, false);
+                toggleElementVisibility("initialFooter"      + tokenId, false);
+                toggleElementVisibility("enrollMyselfForm"   + tokenId);
+                toggleElementVisibility("enrollMyselfFooter" + tokenId);
             };
 
             // ---------------------------------------------------------------
@@ -444,8 +474,12 @@ class block_course_tokens extends block_base
                 const form = document.getElementById(formId);
                 if (!form) return;
 
-                if (type === "other" && !form.checkValidity()) {
-                    showAlertBanner("Please fill out all required fields.", "danger");
+                if (!form.checkValidity()) {
+                    if (typeof form.reportValidity === "function") {
+                        form.reportValidity(); // Highlights the specific missing field natively
+                    } else {
+                        showAlertBanner("Please fill out all required fields.", "danger");
+                    }
                     return;
                 }
 
