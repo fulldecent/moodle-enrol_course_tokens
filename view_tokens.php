@@ -535,19 +535,16 @@ if (!empty($tokens)) {
                 } else {
                     // Standard handling for non-AHA courses
                     if ($DB->get_manager()->table_exists('customcert_issues')) {
-                        // Only fetch cert rows that are NOT yet linked to any archive record.
-                        // A linked row belongs to a past cycle (its PDF has been stored and
-                        // the row is about to be deleted by the nightly task).
-                        // An unlinked row is the fresh row for the current cycle.
+                        // Fetch the most recent certificate issue for this user and course.
+                        // We no longer filter by "arch.id IS NULL" because the background
+                        // archival task securely stores active certificates as well.
                         $certificate = $DB->get_record_sql("
                             SELECT ci.id, ci.code, ci.customcertid, ci.userid
                             FROM {customcert_issues} ci
                             JOIN {customcert} c ON ci.customcertid = c.id
-                            LEFT JOIN {local_mts_hacks_archive} arch ON arch.cert_issue_id = ci.id
                             WHERE ci.userid = :userid
                                 AND c.course = :courseid
                                 AND (c.name = 'Completion eCard' OR c.name = 'Cognitive eCard')
-                                AND arch.id IS NULL
                             ORDER BY ci.id DESC
                             LIMIT 1",
                             ['userid' => $user_id, 'courseid' => $token->course_id]
