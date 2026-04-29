@@ -10,7 +10,9 @@ require_once($CFG->dirroot . '/lib/blocklib.php');
 require_once($CFG->dirroot . '/config.php');
 require_once($CFG->dirroot . '/blocks/moodleblock.class.php');
 require_once($CFG->libdir  . '/weblib.php');
-require_once($CFG->dirroot . '/local/mts_hacks/lib.php');
+if (file_exists($CFG->dirroot . '/local/mts_hacks/lib.php')) {
+    require_once($CFG->dirroot . '/local/mts_hacks/lib.php');
+}
 
 class block_course_tokens extends block_base
 {
@@ -114,14 +116,17 @@ class block_course_tokens extends block_base
 
                 if (!$is_active_token) {
                     // HISTORICAL TOKEN
-                    $archived_record = $DB->get_record_sql("
-                        SELECT id, final_status
-                          FROM {local_mts_hacks_archive}
-                         WHERE userid = ? AND courseid = ?
-                           AND timeissued >= ? AND timeissued <= ?
-                         ORDER BY timeissued DESC
-                         LIMIT 1
-                    ", [$user_id, $token->course_id, $token->used_on, $next_used_on]);
+                    $archived_record = null;
+                    if ($DB->get_manager()->table_exists('local_mts_hacks_archive')) {
+                        $archived_record = $DB->get_record_sql("
+                            SELECT id, final_status
+                              FROM {local_mts_hacks_archive}
+                             WHERE userid = ? AND courseid = ?
+                               AND timeissued >= ? AND timeissued <= ?
+                             ORDER BY timeissued DESC
+                             LIMIT 1
+                        ", [$user_id, $token->course_id, $token->used_on, $next_used_on]);
+                    }
 
                     if ($archived_record) {
                         switch ($archived_record->final_status) {
@@ -146,7 +151,10 @@ class block_course_tokens extends block_base
 
                 } else {
                     // ACTIVE TOKEN
-                    $raw_status = local_mts_hacks_get_course_status($user_id, $token->course_id, $course_name, (int)$token->used_on);
+                    $raw_status = 'assigned';
+                    if (function_exists('local_mts_hacks_get_course_status')) {
+                        $raw_status = local_mts_hacks_get_course_status($user_id, $token->course_id, $course_name, (int)$token->used_on);
+                    }
                     switch ($raw_status) {
                         case 'completed':
                             $course_data[$course_name]['completed']++;
@@ -271,7 +279,17 @@ class block_course_tokens extends block_base
             if ($token) {
 
                 // --- NEW LOGIC: Phone Requirement ---
-                $is_phone_required_course = in_array($counts['course_id'], [13, 15]);
+                $phone_mode = get_config('enrol_course_tokens', 'phone_required_mode');
+                $is_phone_required_course = false;
+
+                if ($phone_mode === 'all') {
+                    $is_phone_required_course = true;
+                } elseif ($phone_mode === 'specific') {
+                    $phone_courses_setting = get_config('enrol_course_tokens', 'phone_required_courses');
+                    $phone_required_ids = $phone_courses_setting ? array_map('intval', array_map('trim', explode(',', $phone_courses_setting))) : [];
+                    $is_phone_required_course = in_array((int)$counts['course_id'], $phone_required_ids);
+                }
+
                 $phone_required_attr = $is_phone_required_course ? 'required' : '';
                 $phone_label_asterisk = $is_phone_required_course ? ' <span class="text-danger">*</span>' : '';
                 $needs_phone_for_myself = $is_phone_required_course && empty($USER->phone1);

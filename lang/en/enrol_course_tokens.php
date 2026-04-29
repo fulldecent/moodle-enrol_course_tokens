@@ -52,3 +52,85 @@ $string['usedby'] = 'Used by';
 $string['usedat'] = 'Used at';
 $string['email'] = "Purchaser's email";
 $string['corporateaccount'] = "Group";
+
+// --- Settings Page Strings ---
+$string['none'] = 'None / Disabled';
+
+$string['sender_email'] = 'Sender Email';
+$string['sender_email_desc'] = 'The email address used as the sender for token delivery and welcome emails. Defaults to the site support email if left blank.';
+
+$string['sender_name'] = 'Sender Name';
+$string['sender_name_desc'] = 'The display name used for outgoing plugin emails. Defaults to the site name.';
+
+$string['custom_login_url'] = 'Custom Login URL';
+$string['custom_login_url_desc'] = 'Optional custom URL for the login page used in email templates. Default is standard Moodle login.';
+
+$string['customer_group_field'] = 'Corporate Group Profile Field';
+$string['customer_group_field_desc'] = 'Select the custom user profile field used to store the corporate/group account name. This maps the token order group name to a specific user field. If "None" is selected, group mapping is disabled.';
+
+// --- Email Template Settings ---
+$string['email_templates_heading'] = 'Email Templates';
+$string['email_templates_desc'] = 'Customize the HTML emails sent by this plugin. You can use the following placeholders in your templates: <br>
+<code>{{firstname}}</code>, <code>{{lastname}}</code>, <code>{{email}}</code>, <code>{{password}}</code>, <code>{{course_name}}</code>, <code>{{token_quantity}}</code>, <code>{{order_number}}</code>, <code>{{login_url}}</code>, <code>{{token_url}}</code>.';
+
+$string['welcome_email'] = 'New Account Welcome Email';
+$string['welcome_email_desc'] = 'Sent to users when a new account is created for them during token purchase.';
+$string['welcome_email_default'] = '
+<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: auto; padding: 20px;">
+	<p>Dear {{firstname}} {{lastname}},</p>
+	<p>A new account has been created for you.</p>
+	<p>Here are your login details:</p>
+	<blockquote style="background-color: #f4f4f4; padding: 10px; border-left: 5px solid #0066cc; margin: 15px 0;">
+		<strong>Email:</strong> {{email}}<br>
+		<strong>Password:</strong> {{password}}
+	</blockquote>
+	<p>Please login at <a href="{{login_url}}">{{login_url}}</a></p>
+	<p>Thank you.</p>
+</div>';
+
+$string['token_email'] = 'Token Delivery Email';
+$string['token_email_desc'] = 'Sent to the purchaser when tokens are generated.';
+$string['token_email_default'] = '
+<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: auto; padding: 20px;">
+	<p>Dear {{firstname}} {{lastname}},</p>
+	<blockquote style="background-color: #f4f4f4; padding: 10px; border-left: 5px solid #0066cc; margin: 15px 0;">
+		You have received {{token_quantity}} token(s) for the course <strong>{{course_name}}</strong>.<br>
+		Order Number: #{{order_number}}
+	</blockquote>
+	<p>You can view and manage your tokens at: <a href="{{token_url}}">{{token_url}}</a></p>
+	<p>Please login at <a href="{{login_url}}">{{login_url}}</a></p>
+	<p>Thank you.</p>
+</div>';
+
+$string['recert_email'] = 'Recertification Email';
+$string['recert_email_desc'] = 'Sent to the student when a token is used to clear progress and start a recertification cycle.';
+$string['recert_email_default'] = '
+<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: auto; padding: 20px;">
+	<p>Dear {{firstname}} {{lastname}},</p>
+	<p>Your recertification for <strong>{{course_name}}</strong> has been processed. All previous progress has been cleared and your course has been reset to 0%.</p>
+	<p>Log in to begin your new certification cycle:<br>
+	<a href="{{login_url}}">{{login_url}}</a></p>
+	<p>Thank you.</p>
+</div>';
+
+$string['phone_required_mode'] = 'Phone Requirement Mode';
+$string['phone_required_mode_desc'] = 'Select whether a phone number should be required during token enrollment.';
+$string['phone_mode_none'] = 'None (Disabled)';
+$string['phone_mode_all'] = 'Require for ALL courses';
+$string['phone_mode_specific'] = 'Require for SPECIFIC courses only';
+
+$string['phone_required_courses'] = 'Specific Course IDs';
+$string['phone_required_courses_desc'] = 'If you selected "Require for SPECIFIC courses only" above, enter a comma-separated list of course IDs (e.g., 13, 15).';
+$string['welcome_email_subject'] = 'Your new account details';
+$string['token_email_subject'] = 'Your course token(s)';
+$string['enrolment_email_subject'] = 'Enrolment Confirmed';
+
+$string['enrolment_email'] = 'Standard Enrolment Email';
+$string['enrolment_email_desc'] = 'Sent to existing users when they successfully enrol in a course (not a new account, not a recertification).';
+$string['enrolment_email_default'] = '
+<div style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: auto; padding: 20px;">
+	<p>Dear {{firstname}} {{lastname}},</p>
+	<p>Welcome back! You have been successfully enrolled in <strong>{{course_name}}</strong>.</p>
+	<p>Log in at: <a href="{{login_url}}">{{login_url}}</a></p>
+	<p>Thank you.</p>
+</div>';

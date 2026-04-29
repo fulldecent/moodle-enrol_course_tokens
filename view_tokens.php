@@ -2,7 +2,9 @@
 require_once('../../config.php');
 // Required for generating public URL for certificates
 require_once($CFG->dirroot . '/mod/customcert/lib.php');
-require_once($CFG->dirroot . '/local/mts_hacks/lib.php');
+if (file_exists($CFG->dirroot . '/local/mts_hacks/lib.php')) {
+    require_once($CFG->dirroot . '/local/mts_hacks/lib.php');
+}
 global $DB, $USER, $PAGE, $OUTPUT;
 
 // Ensure the user is logged in
@@ -130,14 +132,16 @@ if (!empty($tokens)) {
                 // Also fetch pdf_file_id here so the eCard section can use it
                 // without a second DB query.
                 // ----------------------------------------------------------------
-                $archived_record = $DB->get_record_sql("
-                    SELECT id, final_status, pdf_file_id, cert_issue_code
-                      FROM {local_mts_hacks_archive}
-                     WHERE userid = ? AND courseid = ?
-                       AND timeissued >= ? AND timeissued <= ?
-                     ORDER BY timeissued DESC
-                     LIMIT 1
-                ", [$user_id, $token->course_id, $token->used_on, $next_used_on]);
+                if ($DB->get_manager()->table_exists('local_mts_hacks_archive')) {
+                    $archived_record = $DB->get_record_sql("
+                        SELECT id, final_status, pdf_file_id, cert_issue_code
+                          FROM {local_mts_hacks_archive}
+                         WHERE userid = ? AND courseid = ?
+                           AND timeissued >= ? AND timeissued <= ?
+                         ORDER BY timeissued DESC
+                         LIMIT 1
+                    ", [$user_id, $token->course_id, $token->used_on, $next_used_on]);
+                }
 
                 if ($archived_record) {
                     // Map the locked final_status string to a display label and class.
@@ -181,7 +185,10 @@ if (!empty($tokens)) {
                 //   Bug 2 (AHA): completion check now looks at the assignment submission
                 //          file rather than only course_completions.
                 // ----------------------------------------------------------------
-                $raw_status = local_mts_hacks_get_course_status($user_id, $token->course_id, $course_name, (int)$token->used_on);
+                $raw_status = 'assigned';
+                if (function_exists('local_mts_hacks_get_course_status')) {
+                    $raw_status = local_mts_hacks_get_course_status($user_id, $token->course_id, $course_name, (int)$token->used_on);
+                }
                 switch ($raw_status) {
                     case 'completed':
                         $status       = 'Completed';
@@ -268,7 +275,17 @@ if (!empty($tokens)) {
             $use_token_url = new moodle_url('/enrol/course_tokens/use_token.php');
             
             // --- NEW LOGIC: Phone Requirement ---
-            $is_phone_required_course = in_array($token->course_id, [13, 15]);
+            $phone_mode = get_config('enrol_course_tokens', 'phone_required_mode');
+            $is_phone_required_course = false;
+
+            if ($phone_mode === 'all') {
+                $is_phone_required_course = true;
+            } elseif ($phone_mode === 'specific') {
+                $phone_courses_setting = get_config('enrol_course_tokens', 'phone_required_courses');
+                $phone_required_ids = $phone_courses_setting ? array_map('intval', array_map('trim', explode(',', $phone_courses_setting))) : [];
+                $is_phone_required_course = in_array((int)$token->course_id, $phone_required_ids);
+            }
+
             $phone_required_attr = $is_phone_required_course ? 'required' : '';
             $phone_label_asterisk = $is_phone_required_course ? ' <span class="text-danger">*</span>' : '';
             $needs_phone_for_myself = $is_phone_required_course && empty($USER->phone1);
@@ -390,10 +407,13 @@ if (!empty($tokens)) {
                 if (!empty($archived_record) && !empty($archived_record->pdf_file_id)) {
                     // PDF was captured by the nightly sync task or inline at reset time.
                     // Serve the immutable stored copy — correct dates, permanently frozen.
-                    $public_url = local_mts_hacks_get_archived_cert_url(
-                        $archived_record->id,
-                        $archived_record->pdf_file_id
-                    );
+                    $public_url = '#';
+                    if (function_exists('local_mts_hacks_get_archived_cert_url')) {
+                        $public_url = local_mts_hacks_get_archived_cert_url(
+                            $archived_record->id,
+                            $archived_record->pdf_file_id
+                        );
+                    }
 
                     $ecard_button = html_writer::tag('a', 'View eCard', [
                         'href'   => $public_url,
