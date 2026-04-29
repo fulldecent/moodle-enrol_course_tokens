@@ -311,81 +311,28 @@ if (empty($user)) {
     );
   }
 
-  // Prepare email details for new users
-  $message1html = "
-    <html>
-    <head>
-    <style>
-      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-      .container { max-width: 600px; margin: auto; padding: 20px; }
-      .header {
-        background-color: #00467f;
-        color: white;
-        padding: 10px;
-        text-align: center;
-        border-radius: 5px;
-        height: 80px;
-        vertical-align: middle;
-        line-height: 80px;
-      }
-      .header img {
-        max-width: 200px;
-        vertical-align: middle;
-        display: inline-block;
-      }
-      .credentials-box {
-        background-color: #f4f4f4;
-        padding: 10px;
-        border-left: 5px solid #00467f;
-        margin: 15px 0;
-      }
-      .footer { margin-top: 20px; font-size: 0.9em; color: #777; }
-    </style>
-    </head>
-    <body>
-      <div class='container'>
-        <div class='header'>
-          <img src='https://pacificmedicaltraining.com/images/logo-pmt.png?v=3' alt='Pacific Medical Training' style='max-width: 200px; height: auto;'>
-        </div>
-        <p>Dear {$user->firstname} {$user->lastname},</p>
-
-        <p>Your new account has been created at Pacific Medical Training.</p>
-        <p>Here are your login details:</p>
-
-        <blockquote class='credentials-box'>
-          <strong>Email:</strong> {$user->email}<br>
-          <strong>Password:</strong> {$plaintext_password}
-        </blockquote>
-
-        <p>You have the option to access your dashboard in one of two ways:</p>
-        <ol>
-          <li>Use your email address and password to log in.</li>
-          <li>Click the \"Send Magic Link\" button. Check your email for the link to log in. This option does not require a password.</li>
-        </ol>
-
-        <p>Please login at <a href='https://learn.pacificmedicaltraining.com/pmt-login'>https://learn.pacificmedicaltraining.com/pmt-login</a></p>
-
-        <p>If you have any concerns, please reply here.</p>
-
-        <p>Thank you.</p>
-
-        <div class='footer'>
-          <p>Pacific Medical Training<br>
-          <a href='https://pacificmedicaltraining.com'>pacificmedicaltraining.com</a></p>
-        </div>
-      </div>
-    </body>
-    </html>
-    ";
-
-  // Prepare email subject
-  $subject = "Your new account from Pacific Medical Training";
-
-  // Explicitly set the sender details
+// Prepare email details for new users using plugin settings
+$sender_email = get_config('enrol_course_tokens', 'sender_email') ?: $CFG->supportemail;
+$sender_name  = get_config('enrol_course_tokens', 'sender_name') ?: (isset($SITE) ? $SITE->fullname : 'Moodle');
+$login_url    = get_config('enrol_course_tokens', 'custom_login_url') ?: $CFG->wwwroot . '/login/';
+  
   $sender = new stdClass();
-  $sender->firstname = "Pacific";
-  $sender->lastname = "Medical Training";
-  $sender->email = "support@pacificmedicaltraining.com";
+  $sender->email = $sender_email;
+  $sender->firstname = $sender_name;
+  $sender->lastname = '';
+
+  // Get the template and replace placeholders
+  $message1html = get_config('enrol_course_tokens', 'welcome_email_body') ?: '';
+  $replacements = [
+      '{{firstname}}' => $user->firstname,
+      '{{lastname}}'  => $user->lastname,
+      '{{email}}'     => $user->email,
+      '{{password}}'  => $plaintext_password,
+      '{{login_url}}' => $login_url
+  ];
+  $message1html = str_replace(array_keys($replacements), array_values($replacements), $message1html);
+
+  $subject = get_string('welcome_email_subject', 'enrol_course_tokens');
 
   // Send the HTML email with retry
   $email_sent = send_html_email($user, $subject, $message1html, $sender);
@@ -462,71 +409,41 @@ try {
 // Determine the correct token wording
 $token_word = $quantity === 1 ? 'token' : 'tokens';
 
-// Prepare email details for token creation
-$token_url = "https://learn.pacificmedicaltraining.com/my/";
+// Prepare and send token delivery email using plugin-configurable template
+// Fetch sender and template configuration from plugin settings with sensible fallbacks
+$sender_email = get_config('enrol_course_tokens', 'sender_email') ?: $CFG->supportemail;
+$sender_name  = get_config('enrol_course_tokens', 'sender_name') ?: (isset($SITE) ? $SITE->fullname : 'Moodle');
+$login_url    = get_config('enrol_course_tokens', 'custom_login_url') ?: $CFG->wwwroot . '/login/';
 
-$message2html = "
-<html>
-<head>
-<style>
-  body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-  .container { max-width: 600px; margin: auto; padding: 20px; }
-  .header {
-    background-color: #00467f;
-    color: white;
-    padding: 10px;
-    text-align: center;
-    border-radius: 5px;
-    height: 80px;
-    vertical-align: middle;
-    line-height: 80px;
-  }
-  .header img {
-    max-width: 200px;
-    vertical-align: middle;
-    display: inline-block;
-  }
-  .footer { margin-top: 20px; font-size: 0.9em; color: #777; }
-  .token-box { background-color: #f4f4f4; padding: 10px; border-left: 5px solid #00467f; margin: 15px 0; }
-</style>
-</head>
-<body>
-  <div class='container'>
-    <div class='header'>
-      <img src='https://pacificmedicaltraining.com/images/logo-pmt.webp' alt='Pacific Medical Training' style='max-width: 200px; height: auto;'>
-    </div>
-    <p>Dear {$user->firstname} {$user->lastname},</p>
-
-    <blockquote class='token-box'>
-      You have received {$quantity} {$token_word} for the course <strong>{$course->fullname}</strong>.<br>
-      Order Number: #{$order_number}
-    </blockquote>
-
-    <p>You can view your tokens at: <a href='{$token_url}'>{$token_url}</a></p>
-
-    <p>Please login at <a href='https://learn.pacificmedicaltraining.com/pmt-login'>https://learn.pacificmedicaltraining.com/pmt-login</a></p>
-
-    <p>Thank you,<br>Pacific Medical Training</p>
-
-    <div class='footer'>
-      <p>Pacific Medical Training<br>
-      <a href='https://pacificmedicaltraining.com'>pacificmedicaltraining.com</a></p>
-    </div>
-  </div>
-</body>
-</html>
-";
-
-// Prepare email subject
-$subject = "Your course {$token_word} from Pacific Medical Training";
-
-// Explicitly set the sender details
 $sender = new stdClass();
-$sender->firstname = "Pacific";
-$sender->lastname = "Medical Training";
-$sender->email = "support@pacificmedicaltraining.com";
+$sender->email = $sender_email;
+$sender->firstname = $sender_name;
+$sender->lastname = '';
 
-// Send the HTML email with retry
+// Token and site URLs
+$token_url = $CFG->wwwroot . '/my/';
+
+// Retrieve the HTML template stored in plugin settings (admin_setting_confightmleditor)
+$message2html = get_config('enrol_course_tokens', 'token_email_body') ?: '';
+
+// Build replacement map for template placeholders
+$replacements = [
+    '{{firstname}}'     => $user->firstname,
+    '{{lastname}}'      => $user->lastname,
+    '{{token_quantity}}'=> $quantity,
+    '{{course_name}}'   => isset($course->fullname) ? $course->fullname : '',
+    '{{order_number}}'  => $order_number,
+    '{{login_url}}'     => $login_url,
+    '{{token_url}}'     => $token_url,
+];
+
+// Apply replacements to the HTML template
+$message2html = str_replace(array_keys($replacements), array_values($replacements), $message2html);
+
+// Use a localized subject string for the token email
+$subject = get_string('token_email_subject', 'enrol_course_tokens');
+
+// Send the HTML email with retry logic
 $email_sent = send_html_email($user, $subject, $message2html, $sender);
 
 if (!$email_sent) {
@@ -540,8 +457,20 @@ if (!empty($group_account)) {
     retry_operation(function() use ($user, $group_account) {
       global $DB;
 
-      // Find the fieldid for the custom profile field
-      $fieldid = $DB->get_field('user_info_field', 'id', ['shortname' => 'customer_group'], MUST_EXIST);
+      // Determine which custom profile field shortname is configured for group mapping.
+      $selectedfield = trim(get_config('enrol_course_tokens', 'customer_group_field'));
+
+      // If no field is selected in plugin settings, skip group association gracefully.
+      if (empty($selectedfield)) {
+        return true;
+      }
+
+      // Find the fieldid for the configured custom profile field
+      // Find the fieldid for the configured custom profile field
+      $fieldid = $DB->get_field('user_info_field', 'id', ['shortname' => $selectedfield], IGNORE_MISSING);
+      if (!$fieldid) {
+          return true; // The field was deleted from Moodle, gracefully skip
+      }
 
       // Check if an entry already exists
       $existing = $DB->get_record('user_info_data', ['userid' => $user->id, 'fieldid' => $fieldid]);

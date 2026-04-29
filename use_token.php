@@ -118,11 +118,24 @@ if ($enrol_email) {
 // Extract phone number earlier for validation
 $phone_number = isset($_REQUEST['phone_number']) ? optional_param('phone_number', '', PARAM_TEXT) : null;
 
-// Require phone for CPRFAAED (13) and CPRFAAED-Spanish (15)
-if (in_array($course->id, [13, 15])) {
-    // Check if phone number is empty in the form AND the user's profile
+// Validation for courses requiring phone number (configurable via admin settings)
+$phone_mode = get_config('enrol_course_tokens', 'phone_required_mode');
+$is_phone_required = false;
+
+if ($phone_mode === 'all') {
+    $is_phone_required = true;
+} elseif ($phone_mode === 'specific') {
+    $phone_courses_setting = get_config('enrol_course_tokens', 'phone_required_courses');
+    $phone_required_ids = $phone_courses_setting ? array_map('intval', array_map('trim', explode(',', $phone_courses_setting))) : [];
+    $is_phone_required = in_array((int)$course->id, $phone_required_ids);
+}
+
+if ($is_phone_required) {
     if (empty($phone_number) && empty($enrol_user->phone1)) {
-        json_response(['status' => 'error', 'message' => 'A phone number is required to enroll in this course.']);
+        json_response([
+            'status' => 'error',
+            'message' => 'A phone number is required to enrol in this course.'
+        ]);
     }
 }
 
@@ -201,12 +214,21 @@ if ($enrolled_record) {
     }
 
     // -----------------------------------------------------------------------
-    // User confirmed — wipe all activity progress using the mts_hacks manager.
-    // The user stays enrolled; we are only clearing their progress data.
-    // Pass $token->id so the archive record is linked to the correct token cycle.
+    // User confirmed — trigger renewal event.
+    // The user stays enrolled; mts_hacks will listen for this event and archive progress.
     // -----------------------------------------------------------------------
-    require_once($CFG->dirroot . '/local/mts_hacks/classes/archive/manager.php');
-    \local_mts_hacks\archive\manager::reset_user_course($enrol_user->id, $course->id, $token->id);
+    if (class_exists('\enrol_course_tokens\event\token_renewal_confirmed')) {
+        $event = \enrol_course_tokens\event\token_renewal_confirmed::create([
+            'objectid'      => $token->id, // Add this line
+            'context'       => context_course::instance($course->id),
+            'relateduserid' => $enrol_user->id,
+            'other'         => [
+                'token_id'  => $token->id, 
+                'course_id' => $course->id
+            ]
+        ]);
+        $event->trigger();
+    }
 
     $is_renewal = true;
 }
@@ -220,23 +242,19 @@ if (!$is_renewal) {
     $enrolPlugin->enrol_user($enrolinstance, $enrol_user->id, $roleId);
 }
 
-/**
- * AUTOMATIC GROUP ASSIGNMENT FOR AHA COURSES
- * As per GitHub Issue #375 — place every enrollee into the "FULL class" group
- * for AHA courses (ACLS=16, BLS=18, PALS=20) automatically.
- */
-if (in_array($course->id, [16, 18, 20])) {
-    require_once($CFG->dirroot . '/group/lib.php');
-    $group_id = groups_get_group_by_name($course->id, 'FULL class');
-    if (!$group_id) {
-        $groupdata           = new stdClass();
-        $groupdata->courseid = $course->id;
-        $groupdata->name     = 'FULL class';
-        $group_id            = groups_create_group($groupdata);
-    }
-    if (!groups_is_member($group_id, $enrol_user->id)) {
-        groups_add_member($group_id, $enrol_user->id);
-    }
+// Trigger Generic Enrolment Event (mts_hacks will listen to this to assign AHA groups)
+// Fired for new enrolments only. Renewals stay enrolled and don't need re-adding to groups.
+if (!$is_renewal && class_exists('\enrol_course_tokens\event\user_enrolled_via_token')) {
+    $event = \enrol_course_tokens\event\user_enrolled_via_token::create([
+        'objectid'      => $token->id,
+        'context'       => context_course::instance($course->id),
+        'relateduserid' => $enrol_user->id,
+        'other'         => [
+            'course_id' => $course->id,
+            'token_id'  => $token->id
+        ]
+    ]);
+    $event->trigger();
 }
 
 // ---------------------------------------------------------------------------
@@ -261,10 +279,13 @@ if ($USER->id !== $enrol_user->id) {
     if ($token_owner) {
         ensure_optional_name_fields($token_owner);
 
+        $sender_email = get_config('enrol_course_tokens', 'sender_email') ?: $CFG->supportemail;
+        $sender_name  = get_config('enrol_course_tokens', 'sender_name') ?: (isset($SITE) ? $SITE->fullname : 'Moodle');
+
         $from_user              = new stdClass();
-        $from_user->email       = 'support@pacificmedicaltraining.com';
-        $from_user->firstname   = 'PMT';
-        $from_user->lastname    = 'instructor';
+        $from_user->email       = $sender_email;
+        $from_user->firstname   = $sender_name;
+        $from_user->lastname    = '';
         $from_user->maildisplay = 1;
         ensure_optional_name_fields($from_user);
 
@@ -273,7 +294,7 @@ if ($USER->id !== $enrol_user->id) {
             "Dear {$token_owner->firstname} {$token_owner->lastname},\n\n"
             . "Your token '{$token->code}' was used to enrol "
             . "{$enrol_user->firstname} {$enrol_user->lastname} ({$enrol_user->email})"
-            . " in: {$course->fullname}.\n\nThank you,\nPMT Team"
+            . " in: {$course->fullname}."
         );
     }
 }
@@ -294,35 +315,57 @@ if ($phone_number || $address) {
 // ---------------------------------------------------------------------------
 // SEND CONFIRMATION EMAIL
 // ---------------------------------------------------------------------------
+$sender_email = get_config('enrol_course_tokens', 'sender_email') ?: $CFG->supportemail;
+$sender_name  = get_config('enrol_course_tokens', 'sender_name') ?: (isset($SITE) ? $SITE->fullname : 'Moodle');
+$login_url    = get_config('enrol_course_tokens', 'custom_login_url') ?: $CFG->wwwroot . '/login/';
+
 $from_user              = new stdClass();
-$from_user->email       = 'support@pacificmedicaltraining.com';
-$from_user->firstname   = 'PMT';
-$from_user->lastname    = 'instructor';
+$from_user->email       = $sender_email;
+$from_user->firstname   = $sender_name;
+$from_user->lastname    = '';
 $from_user->maildisplay = 1;
 ensure_optional_name_fields($from_user);
 
+$html_content = '';
+
 if ($is_renewal) {
     $subject = "Recertification Started: {$course->fullname}";
-    $message = "Dear {$enrol_user->firstname} {$enrol_user->lastname},\n\n"
-             . "Your recertification for {$course->fullname} has been processed. "
-             . "All previous progress has been cleared and your course has been reset to 0%.\n\n"
-             . "Log in to begin your new certification cycle:\n"
-             . "https://learn.pacificmedicaltraining.com/login/\n\nThank you,\nPMT Team";
+    $html_content = get_config('enrol_course_tokens', 'recert_email_body') ?: '';
+    $replacements = [
+        '{{firstname}}'   => $enrol_user->firstname,
+        '{{lastname}}'    => $enrol_user->lastname,
+        '{{course_name}}' => $course->fullname,
+        '{{login_url}}'   => $login_url
+    ];
+    $html_content = str_replace(array_keys($replacements), array_values($replacements), $html_content);
+
 } elseif ($is_new_user) {
-    $subject = "Welcome to the {$course->fullname} Course";
-    $message = "Dear {$enrol_user->firstname} {$enrol_user->lastname},\n\n"
-             . "Thank you for purchasing {$course->fullname}.\n"
-             . "Log in at: https://learn.pacificmedicaltraining.com/login/\n\n"
-             . "Username: {$enrol_user->username} | Default password: changeme "
-             . "(you will be asked to change it on first login).\n\nThank you.";
+    $subject = get_string('welcome_email_subject', 'enrol_course_tokens');
+    $html_content = get_config('enrol_course_tokens', 'welcome_email_body') ?: '';
+    $replacements = [
+        '{{firstname}}'   => $enrol_user->firstname,
+        '{{lastname}}'    => $enrol_user->lastname,
+        '{{email}}'       => $enrol_user->email, // FIXED: Using email instead of username
+        '{{password}}'    => 'changeme',
+        '{{login_url}}'   => $login_url
+    ];
+    $html_content = str_replace(array_keys($replacements), array_values($replacements), $html_content);
+
 } else {
-    $subject = "Welcome to the {$course->fullname} Course";
-    $message = "Dear {$enrol_user->firstname} {$enrol_user->lastname},\n\n"
-             . "Welcome back! You have been successfully enrolled in {$course->fullname}.\n"
-             . "Log in at: https://learn.pacificmedicaltraining.com/login/\n\nThank you.";
+    $subject = get_string('enrolment_email_subject', 'enrol_course_tokens');
+    $html_content = get_config('enrol_course_tokens', 'enrolment_email_body') ?: '';
+    $replacements = [
+        '{{firstname}}'   => $enrol_user->firstname,
+        '{{lastname}}'    => $enrol_user->lastname,
+        '{{course_name}}' => $course->fullname,
+        '{{login_url}}'   => $login_url
+    ];
+    $html_content = str_replace(array_keys($replacements), array_values($replacements), $html_content);
 }
 
-email_to_user($enrol_user, $from_user, $subject, $message);
+$plain_content = strip_tags($html_content);
+
+email_to_user($enrol_user, $from_user, $subject, $plain_content, $html_content);
 
 // ---------------------------------------------------------------------------
 // FINAL RESPONSE
