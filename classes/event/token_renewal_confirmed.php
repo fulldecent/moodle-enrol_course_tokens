@@ -12,9 +12,9 @@ class token_renewal_confirmed extends \core\event\base {
      * Init method.
      */
     protected function init() {
-        $this->data['crud']      = 'u'; // Use 'c' for create, 'u' for update
-        $this->data['edulevel']  = self::LEVEL_PARTICIPATING;
-        $this->data['objectid']  = 0; // Moodle requires this; populated at trigger time
+        $this->data['crud']        = 'u'; // Use 'c' for create, 'u' for update
+        $this->data['edulevel']    = self::LEVEL_PARTICIPATING;
+        $this->data['objecttable'] = 'course_tokens';
     }
 
     public static function get_objectid_mapping() {

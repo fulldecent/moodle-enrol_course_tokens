@@ -12,9 +12,9 @@ class user_enrolled_via_token extends \core\event\base {
      * Init method.
      */
     protected function init() {
-        $this->data['crud']      = 'c'; // Create - new enrolment
-        $this->data['edulevel']  = self::LEVEL_PARTICIPATING;
-        $this->data['objectid']  = 0; // Moodle requires this; populated at trigger time
+        $this->data['crud']        = 'c'; // Create - new enrolment
+        $this->data['edulevel']    = self::LEVEL_PARTICIPATING;
+        $this->data['objecttable'] = 'course_tokens';
     }
 
     public static function get_objectid_mapping() {
