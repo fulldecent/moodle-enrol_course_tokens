@@ -263,7 +263,13 @@ if (!$is_renewal && class_exists('\enrol_course_tokens\event\user_enrolled_via_t
 // unenrol), so this lookup always succeeds in both cases.
 // ---------------------------------------------------------------------------
 $userEnrolment = $DB->get_record('user_enrolments',
-                    ['userid' => $enrol_user->id, 'enrolid' => $enrolinstance->id]);
+                    ['userid' => $enrol_user->id, 'enrolid' => $enrolinstance->id], '*', IGNORE_MULTIPLE);
+
+// Fallback: If enrolled via another method (e.g., manual), use that existing enrolment ID
+if (!$userEnrolment && $enrolled_record) {
+    $userEnrolment = $enrolled_record;
+}
+
 if ($userEnrolment) {
     $token->user_enrolments_id = $userEnrolment->id;
     $token->used_on            = time();
