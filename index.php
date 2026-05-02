@@ -8,8 +8,33 @@ $PAGE->set_url(new moodle_url('/enrol/course_tokens/index.php'));
 $PAGE->set_title(get_string('pluginname', 'enrol_course_tokens'));
 $PAGE->set_heading(get_string('pluginname', 'enrol_course_tokens'));
 
-// Load from databases, order tokens by creation time (newer first)
-$tokens = $DB->get_records('course_tokens', null, 'timecreated DESC');
+// Pagination setup
+$page = optional_param('page', 0, PARAM_INT);
+$perpage = 30; // Number of entries per page
+
+// Count total records for the paging bar
+$totalcount = $DB->count_records('course_tokens');
+
+// Load from database with JOINs to avoid N+1 queries, paginated
+$sql = "SELECT t.id, t.timecreated, t.timemodified, t.code, t.course_id, 
+               t.voided, t.voided_at, t.voided_notes, t.user_enrolments_id, 
+               t.extra_json, t.user_id, t.used_on, t.group_account, t.created_by,
+               c.email AS creator_email,
+               p.email AS purchaser_email,
+               u.id AS used_userid,
+               u.firstname AS used_firstname,
+               u.lastname AS used_lastname,
+               u.email AS used_email,
+               u.phone1 AS used_phone,
+               u.address AS used_address
+          FROM {course_tokens} t
+     LEFT JOIN {user} c ON c.id = t.created_by
+     LEFT JOIN {user} p ON p.id = t.user_id
+     LEFT JOIN {user_enrolments} ue ON ue.id = t.user_enrolments_id
+     LEFT JOIN {user} u ON u.id = ue.userid
+      ORDER BY t.timecreated DESC";
+
+$tokens = $DB->get_records_sql($sql, null, $page * $perpage, $perpage);
 $sql = "
     SELECT c.id, c.fullname
     FROM {course} c
@@ -100,7 +125,12 @@ echo '</form>';
 
 // Show existing tokens
 echo '<h2 class="my-3">' . s(get_string('existingtokens', 'enrol_course_tokens')) . '</h2>';
+
+// Output top paging bar
+echo $OUTPUT->paging_bar($totalcount, $page, $perpage, $PAGE->url);
+
 echo '<table class="table">';
+echo '<thead>';
 echo '<tr>';
 echo '  <th>' . s(get_string('token', 'enrol_course_tokens')) . '</th>';
 echo '  <th>' . s(get_string('course', 'enrol_course_tokens')) . '</th>';
@@ -112,144 +142,138 @@ echo '  <th>' . s(get_string('corporateaccount', 'enrol_course_tokens')) . '</th
 echo '  <th>' . s(get_string('usedby', 'enrol_course_tokens')) . '</th>';
 echo '  <th>' . s(get_string('usedat', 'enrol_course_tokens')) . '</th>';
 echo '</tr>';
+echo '</thead>';
+echo '<tbody>';
+
 foreach ($tokens as $token) {
-    // Add bg-danger class for voided tokens
-    $rowClass = $token->voided ? ' class="bg-danger text-white"' : '';
-    echo '<tr' . $rowClass . '>';
-    echo '<td>' . s($token->code) . '</td>';
-    echo '<td>' . s($courses[$token->course_id]) . '</td>';
+        // Add bg-danger class for voided tokens
+        $rowClass = $token->voided ? ' class="bg-danger text-white"' : '';
+        echo '<tr' . $rowClass . '>';
+        echo '<td>' . s($token->code) . '</td>';
+        echo '<td>' . s($courses[$token->course_id] ?? '-') . '</td>';
 
-    // Fetch user who created the token
-    $creator = $DB->get_record('user', array('id' => $token->created_by), 'email');
-    $created_by = $creator ? s($creator->email) : 'none';
-    echo '<td>' . $created_by . '</td>';
+        // Display user who created the token (from JOIN)
+        $created_by = !empty($token->creator_email) ? s($token->creator_email) : 'none';
+        echo '<td>' . $created_by . '</td>';
 
-    // Format "Created at" in ISO date format
-    $created_at = date('Y-m-d', $token->timecreated);
-    echo '<td>' . $created_at . '</td>';
+        // Format "Created at" in ISO date format
+        $created_at = date('Y-m-d', $token->timecreated);
+        echo '<td>' . $created_at . '</td>';
 
-    // Fetch purchaser (assigned to)
-    $purchaser_email = $DB->get_field('user', 'email', array('id' => $token->user_id));
-    echo '<td>' . s($purchaser_email) . '</td>';
+        // Display purchaser (assigned to) (from JOIN)
+        $purchaser_email = !empty($token->purchaser_email) ? s($token->purchaser_email) : '';
+        echo '<td>' . $purchaser_email . '</td>';
 
-    // Display Extra JSON (formatted or raw)
-    $extra_json = !empty($token->extra_json) ? s($token->extra_json) : '-';
-    echo '<td><pre>' . $extra_json . '</pre></td>';
+        // Display Extra JSON (formatted or raw)
+        $extra_json = !empty($token->extra_json) ? s($token->extra_json) : '-';
+        echo '<td><pre>' . $extra_json . '</pre></td>';
 
-    // Display the Corporate Account if available
-    $group_account = !empty($token->group_account) ? s($token->group_account) : '-';
-    echo '<td>' . $group_account . '</td>';
+        // Display the Corporate Account if available
+        $group_account = !empty($token->group_account) ? s($token->group_account) : '-';
+        echo '<td>' . $group_account . '</td>';
 
-    // Fetch "Used By" and "Used At" details using user_enrolments_id.
-    $used_by_user = null;
-    if (!empty($token->user_enrolments_id)) {
-        $enrollment = $DB->get_record('user_enrolments', ['id' => $token->user_enrolments_id], 'userid');
-        if ($enrollment) {
-            $used_by_user = $DB->get_record('user', ['id' => $enrollment->userid], 'firstname, lastname, email, phone1, address');
-        }
-
-        if ($used_by_user) {
-            $used_by = s($used_by_user->email);
-            $phone = !empty($used_by_user->phone1) ? s($used_by_user->phone1) : 'N/A';
-            $address = !empty($used_by_user->address) ? s($used_by_user->address) : 'N/A';
+        // Display "Used By" and "Used At" details (from JOIN)
+        if (!empty($token->user_enrolments_id) && !empty($token->used_userid)) {
+            $used_by = s($token->used_email);
+            $phone = !empty($token->used_phone) ? s($token->used_phone) : 'N/A';
+            $address = !empty($token->used_address) ? s($token->used_address) : 'N/A';
             $used_at = date('Y-m-d', $token->used_on);
 
             // Render the clickable "Used by" text
             $modal_trigger = html_writer::tag('a', $used_by, [
                 'href' => '#',
                 'data-bs-toggle' => 'modal',
-                'data-bs-target' => '#userModal' . $enrollment->userid,
+                'data-bs-target' => '#userModal' . $token->used_userid,
             ]);
-
             echo '<td>' . $modal_trigger . '</td>';
-            echo '<td>' . s($used_at) . '</td>';
+            echo '<td>' . $used_at . '</td>';
 
             // Add the modal HTML
             echo '
-        <div class="modal fade" id="userModal' . $enrollment->userid . '" tabindex="-1" role="dialog" aria-labelledby="userModalLabel' . $enrollment->userid . '" aria-hidden="true">
-            <div class="modal-dialog" role="document">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title" id="userModalLabel' . $enrollment->userid . '">User details</h5>
-                        <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
-                            <span aria-hidden="true">&times;</span>
-                        </button>
-                    </div>
-                    <div class="modal-body">
-                        <p><strong>Name:</strong> ' . s($used_by_user->firstname) . ' ' . s($used_by_user->lastname) . '</p>
-                        <p><strong>Phone number:</strong> ' . $phone . '</p>
-                        <p><strong>Address:</strong> ' . $address . '</p>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            <div class="modal fade" id="userModal' . $token->used_userid . '" tabindex="-1" role="dialog" aria-labelledby="userModalLabel' . $token->used_userid . '" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="userModalLabel' . $token->used_userid . '">User details</h5>
+                            <button type="button" class="close" data-bs-dismiss="modal" aria-label="Close">
+                                <span aria-hidden="true">&times;</span>
+                            </button>
+                        </div>
+                        <div class="modal-body">
+                            <p><strong>Name:</strong> ' . s($token->used_firstname) . ' ' . s($token->used_lastname) . '</p>
+                            <p><strong>Phone number:</strong> ' . $phone . '</p>
+                            <p><strong>Address:</strong> ' . $address . '</p>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </div>';
+            </div>';
         } else {
             echo '<td>-</td>';
             echo '<td>-</td>';
         }
-    } else {
-        echo '<td>-</td>';
-        echo '<td>-</td>';
-    }
-    if (!empty($token->user_enrolments_id) && !empty($used_by_user)) {
-        $user_email = s($used_by_user->email); // Get the correct enrolled user's email
-        $token_id = s($token->id); // Ensure token ID is passed correctly
 
-        echo '<td>
-            <button type="button" class="btn btn-warning unenroll-btn"
-                data-bs-toggle="tooltip"
-                data-bs-placement="top"
-                title="Clicking this will unenroll ' . $user_email . ' from the course. All progress will be lost. The course token can be used again after unenrolling."
-                data-bs-user-email="' . $user_email . '"
-                data-bs-token-id="' . $token_id . '">
-                Unenroll
-            </button>
-        </td>';
-    } else {
-        echo '<td>-</td>';
-    }
-
-    if (!empty($token->id)) {
-        $token_id = s($token->id);
-        $is_used = !empty($token->used_on);
-
-        // Use the same used_by_user logic for consistency
-        $user_email = !empty($used_by_user) ? s($used_by_user->email) : null;
-
-        echo '<td>';
-        if ($token->voided) {
-            echo '<button type="button" class="btn btn-success unvoid-token-btn"
-                data-bs-toggle="tooltip"
-                data-bs-placement="top"
-                title="Clicking this will unvoid the token, making it usable again."
-                data-bs-token-id="' . $token->id . '">
-                Unvoid Token
-            </button>';
+        if (!empty($token->user_enrolments_id) && !empty($token->used_userid)) {
+            $user_email = s($token->used_email); // Get the correct enrolled user's email
+            $token_id = (int) $token->id; // Ensure token ID is passed correctly
+            echo '<td>
+                <button type="button" class="btn btn-warning unenroll-btn"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="top"
+                    title="Clicking this will unenroll ' . $user_email . ' from the course. All progress will be lost. The course token can be used again after unenrolling."
+                    data-bs-user-email="' . $user_email . '"
+                    data-bs-token-id="' . $token_id . '">
+                    Unenroll
+                </button>
+            </td>';
         } else {
-            $tooltipText = $is_used
-                ? 'Clicking this will void the token and will unenroll ' . $user_email . ' from the course. All progress will be lost.'
-                : 'Clicking this will void the token.';
-
-            echo '<button type="button" class="btn btn-danger void-token-btn"
-                        data-bs-toggle="tooltip"
-                        data-bs-placement="top"
-                        title="' . $tooltipText . '"
-                        data-bs-token-id="' . $token->id . '"
-                        data-bs-user-email="' . ($user_email ?? '') . '"
-                        data-bs-is-used="' . ($is_used ? '1' : '0') . '">
-                        Void Token
-                    </button>';
+            echo '<td>-</td>';
         }
-        echo '</td>';
-    } else {
-        echo '<td>-</td>';
+
+        if (!empty($token->id)) {
+            $token_id = (int) $token->id;
+            $is_used = !empty($token->used_on);
+
+            $user_email = !empty($token->used_userid) ? s($token->used_email) : null;
+
+            echo '<td>';
+            if ($token->voided) {
+                echo '<button type="button" class="btn btn-success unvoid-token-btn"
+                    data-bs-toggle="tooltip"
+                    data-bs-placement="top"
+                    title="Clicking this will unvoid the token, making it usable again."
+                    data-bs-token-id="' . $token->id . '">
+                    Unvoid Token
+                </button>';
+            } else {
+                $tooltipText = $is_used
+                    ? 'Clicking this will void the token and will unenroll ' . $user_email . ' from the course. All progress will be lost.'
+                    : 'Clicking this will void the token.';
+
+                echo '<button type="button" class="btn btn-danger void-token-btn"
+                            data-bs-toggle="tooltip"
+                            data-bs-placement="top"
+                            title="' . $tooltipText . '"
+                            data-bs-token-id="' . $token->id . '"
+                            data-bs-user-email="' . ($user_email ?? '') . '"
+                            data-bs-is-used="' . ($is_used ? '1' : '0') . '">
+                            Void Token
+                        </button>';
+            }
+            echo '</td>';
+        } else {
+            echo '<td>-</td>';
+        }
+
+        echo '</tr>';
     }
-    echo '</tr>';
-}
+echo '</tbody>';
 echo '</table>';
+
+// Output bottom paging bar
+echo $OUTPUT->paging_bar($totalcount, $page, $perpage, $PAGE->url);
 
 echo '
 <div class="modal fade" id="unenrollModal" tabindex="-1" aria-labelledby="unenrollModalLabel" aria-hidden="true">

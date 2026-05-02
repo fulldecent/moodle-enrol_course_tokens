@@ -39,18 +39,32 @@ function xmldb_enrol_course_tokens_upgrade($oldversion) {
     }
 
     // Upgrade to version 2024120307: Drop the 'used_by' field.
-    if ($oldversion < 2024120307) {
-        $table = new xmldb_table('course_tokens');
+        if ($oldversion < 2024120307) {
+            $table = new xmldb_table('course_tokens');
 
-        // Drop the field if it exists.
-        if ($dbman->field_exists($table, 'used_by')) {
-            $field = new xmldb_field('used_by');
-            $dbman->drop_field($table, $field);
+            // Drop the field if it exists.
+            if ($dbman->field_exists($table, 'used_by')) {
+                $field = new xmldb_field('used_by');
+                $dbman->drop_field($table, $field);
+            }
+
+            // Upgrade savepoint.
+            upgrade_plugin_savepoint(true, 2024120307, 'enrol', 'course_tokens');
         }
 
-        // Upgrade savepoint.
-        upgrade_plugin_savepoint(true, 2024120307, 'enrol', 'course_tokens');
-    }
+        // Upgrade: Add index for timecreated to optimize pagination.
+        if ($oldversion < 2026050201) {
+            $table = new xmldb_table('course_tokens');
+            $index = new xmldb_index('timecreated', XMLDB_INDEX_NOTUNIQUE, ['timecreated']);
+
+            // Conditionally launch add index timecreated
+            if (!$dbman->index_exists($table, $index)) {
+                $dbman->add_index($table, $index);
+            }
+
+            // Upgrade savepoint.
+            upgrade_plugin_savepoint(true, 2026050201, 'enrol', 'course_tokens');
+        }
 
     return true;
 }
