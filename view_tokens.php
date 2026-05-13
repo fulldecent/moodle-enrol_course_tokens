@@ -74,6 +74,7 @@ if (!empty($tokens)) {
     echo html_writer::tag('th', 'Used by');
     echo html_writer::tag('th', 'Name of student');
     echo html_writer::tag('th', 'Used on');
+    echo html_writer::tag('th', 'Skills schedule date'); // <-- NEW COLUMN HEADER
     echo html_writer::tag('th', 'Enroll myself');
     echo html_writer::tag('th', 'Enroll somebody else');
     echo html_writer::tag('th', 'eCard');
@@ -269,6 +270,32 @@ if (!empty($tokens)) {
         echo html_writer::tag('td', $student_name);
 
         echo html_writer::tag('td', $used_on);
+
+        // Fetch Skills schedule date
+        $schedule_dates_output = '-';
+        if ($user_id && !empty($token->course_id)) {
+            $schedulersql = "SELECT ss.id, ss.starttime 
+                             FROM {scheduler_appointment} sa
+                             JOIN {scheduler_slots} ss ON sa.slotid = ss.id
+                             JOIN {scheduler} s ON ss.schedulerid = s.id
+                             WHERE s.course = ? AND sa.studentid = ?
+                             ORDER BY ss.starttime ASC";
+            
+            $scheduled_slots = $DB->get_records_sql($schedulersql, [$token->course_id, $user_id]);
+            
+            if (!empty($scheduled_slots)) {
+                $schedule_dates_array = [];
+                foreach ($scheduled_slots as $slot) {
+                    // Format to Eastern Time to match PMT timezone requirements
+                    $schedule_dates_array[] = userdate($slot->starttime, '%A, %d %B %Y %I:%M %p', 'America/New_York');
+                }
+                $schedule_dates_output = implode('<br>', $schedule_dates_array);
+            } else {
+                $schedule_dates_output = 'Not scheduled';
+            }
+        }
+        echo html_writer::tag('td', $schedule_dates_output);
+        // ---------------------------------------------
 
         // Show "Enroll Myself" and "Enroll Somebody Else" buttons for available tokens
         if ($status === 'Available') {
