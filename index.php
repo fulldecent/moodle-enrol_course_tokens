@@ -12,12 +12,59 @@ $PAGE->set_heading(get_string('pluginname', 'enrol_course_tokens'));
 $page = optional_param('page', 0, PARAM_INT);
 $perpage = 30; // Number of entries per page
 
-// Count total records for the paging bar
-$totalcount = $DB->count_records('course_tokens');
+// Search parameters
+$search_token = optional_param('search_token', '', PARAM_TEXT);
+$search_order = optional_param('search_order', '', PARAM_TEXT);
+$search_purchaser_email = optional_param('search_purchaser_email', '', PARAM_RAW);
+$search_used_email = optional_param('search_used_email', '', PARAM_RAW);
 
-// Load from database with JOINs to avoid N+1 queries, paginated
-$sql = "SELECT t.id, t.timecreated, t.timemodified, t.code, t.course_id, 
-               t.voided, t.voided_at, t.voided_notes, t.user_enrolments_id, 
+// Build the dynamic WHERE clause for sniper shot search
+$wheres = [];
+$params = [];
+
+if ($search_token !== '') {
+    $wheres[] = $DB->sql_like('t.code', ':search_token');
+    $params['search_token'] = '%' . $DB->sql_like_escape($search_token) . '%';
+    $PAGE->url->param('search_token', $search_token);
+}
+
+if ($search_order !== '') {
+    // Target the specific JSON key and value pattern
+    $wheres[] = $DB->sql_like('t.extra_json', ':search_order');
+    $params['search_order'] = '%"order_number":' . $DB->sql_like_escape($search_order) . '%';
+    $PAGE->url->param('search_order', $search_order);
+}
+
+if ($search_purchaser_email !== '') {
+    $wheres[] = $DB->sql_like('p.email', ':search_purchaser_email', false);
+    $params['search_purchaser_email'] = '%' . $DB->sql_like_escape($search_purchaser_email) . '%';
+    $PAGE->url->param('search_purchaser_email', $search_purchaser_email);
+}
+
+if ($search_used_email !== '') {
+    $wheres[] = $DB->sql_like('u.email', ':search_used_email', false);
+    $params['search_used_email'] = '%' . $DB->sql_like_escape($search_used_email) . '%';
+    $PAGE->url->param('search_used_email', $search_used_email);
+}
+
+$whereclause = '';
+if (!empty($wheres)) {
+    $whereclause = ' WHERE ' . implode(' AND ', $wheres);
+}
+
+// Count total records for the paging bar based on search criteria
+$countsql = "SELECT COUNT(1)
+               FROM {course_tokens} t
+          LEFT JOIN {user} c ON c.id = t.created_by
+          LEFT JOIN {user} p ON p.id = t.user_id
+          LEFT JOIN {user_enrolments} ue ON ue.id = t.user_enrolments_id
+          LEFT JOIN {user} u ON u.id = ue.userid
+             $whereclause";
+$totalcount = $DB->count_records_sql($countsql, $params);
+
+// Load from database with JOINs, applying the WHERE clauses and pagination
+$sql = "SELECT t.id, t.timecreated, t.timemodified, t.code, t.course_id,
+               t.voided, t.voided_at, t.voided_notes, t.user_enrolments_id,
                t.extra_json, t.user_id, t.used_on, t.group_account, t.created_by,
                c.email AS creator_email,
                p.email AS purchaser_email,
@@ -32,9 +79,10 @@ $sql = "SELECT t.id, t.timecreated, t.timemodified, t.code, t.course_id,
      LEFT JOIN {user} p ON p.id = t.user_id
      LEFT JOIN {user_enrolments} ue ON ue.id = t.user_enrolments_id
      LEFT JOIN {user} u ON u.id = ue.userid
+     $whereclause
       ORDER BY t.timecreated DESC";
 
-$tokens = $DB->get_records_sql($sql, null, $page * $perpage, $perpage);
+$tokens = $DB->get_records_sql($sql, $params, $page * $perpage, $perpage);
 $sql = "
     SELECT c.id, c.fullname
     FROM {course} c
@@ -123,8 +171,48 @@ echo '</div>';
 echo '<input type="hidden" name="sesskey" value="' . sesskey() . '"/>';
 echo '</form>';
 
-// Show existing tokens
-echo '<h2 class="my-3">' . s(get_string('existingtokens', 'enrol_course_tokens')) . '</h2>';
+// Show existing tokens with a collapsible Search Form
+$show_collapse = !empty($wheres) ? 'show' : '';
+echo '
+<div class="d-flex justify-content-between align-items-center my-3">
+    <h2 class="m-0">' . s(get_string('existingtokens', 'enrol_course_tokens')) . '</h2>
+    <button class="btn btn-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#searchTokensForm" aria-expanded="false" aria-controls="searchTokensForm">
+        <i class="fa fa-search"></i> Search Tokens
+    </button>
+</div>
+
+<div class="collapse mb-4 ' . $show_collapse . '" id="searchTokensForm">
+    <div class="card card-body">
+        <form action="index.php" method="GET">
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label for="search_token" class="form-label">Token Code</label>
+                    <input type="text" class="form-control" id="search_token" name="search_token" value="' . s($search_token) . '" placeholder="e.g. 123-abc">
+                </div>
+                <div class="col-md-6">
+                    <label for="search_order" class="form-label">Order Number</label>
+                    <input type="text" class="form-control" id="search_order" name="search_order" value="' . s($search_order) . '" placeholder="e.g. 9034">
+                </div>
+            </div>
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label for="search_purchaser_email" class="form-label">Purchaser Email</label>
+                    <input type="text" class="form-control" id="search_purchaser_email" name="search_purchaser_email" value="' . s($search_purchaser_email) . '" placeholder="e.g. purchaser@example.com">
+                </div>
+                <div class="col-md-6">
+                    <label for="search_used_email" class="form-label">Used By Email</label>
+                    <input type="text" class="form-control" id="search_used_email" name="search_used_email" value="' . s($search_used_email) . '" placeholder="e.g. student@example.com">
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-12 text-end">
+                    <a href="index.php" class="btn btn-outline-secondary me-2">Clear</a>
+                    <button type="submit" class="btn btn-primary">Apply Search</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>';
 
 // Output top paging bar
 echo $OUTPUT->paging_bar($totalcount, $page, $perpage, $PAGE->url);
