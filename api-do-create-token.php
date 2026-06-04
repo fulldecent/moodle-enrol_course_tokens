@@ -1,5 +1,5 @@
 <?php
-require_once('/var/www/vhosts/moodle/config.php'); // Actual path to Moodle's config.php
+require_once('../../config.php');
 
 // Set PAGE context early to avoid Moodle warnings
 global $PAGE;

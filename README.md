@@ -102,7 +102,7 @@ Follow these steps to generate a secure secret_key for your plugin:
 
 ```php
 <?php
-require_once('/var/www/vhosts/moodle/config.php');
+require_once('../../config.php');
 require_login();
 require_capability('moodle/site:config', context_system::instance());
 
