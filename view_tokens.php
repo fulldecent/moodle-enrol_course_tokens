@@ -583,10 +583,9 @@ if (!empty($tokens)) {
                     // Standard handling for non-AHA courses
                     if ($DB->get_manager()->table_exists('customcert_issues')) {
                         // Fetch the most recent certificate issue for this user and course.
-                        // We no longer filter by "arch.id IS NULL" because the background
-                        // archival task securely stores active certificates as well.
+                        // Added "c.name AS certname" to determine which eCard was fetched.
                         $certificate = $DB->get_record_sql("
-                            SELECT ci.id, ci.code, ci.customcertid, ci.userid
+                            SELECT ci.id, ci.code, ci.customcertid, ci.userid, c.name AS certname
                             FROM {customcert_issues} ci
                             JOIN {customcert} c ON ci.customcertid = c.id
                             WHERE ci.userid = :userid
@@ -599,9 +598,20 @@ if (!empty($tokens)) {
 
                         if ($certificate && !empty($certificate->code) && function_exists('generate_public_url_for_certificate')) {
                             $public_url   = generate_public_url_for_certificate($certificate->code);
+                            
+                            // ---Visual cue for Cognitive vs Completion eCard ---
+                            // Default to green (btn-success) for Cognitive eCard
+                            $btn_class = 'btn btn-success'; 
+                            
+                            // Use a distinct color (e.g., btn-info) for Completion eCard
+                            if ($certificate->certname === 'Completion eCard') {
+                                $btn_class = 'btn btn-info text-white'; 
+                            }
+                            // ---------------------------------------------------------------
+
                             $ecard_button = html_writer::tag('a', 'View eCard', [
                                 'href'   => $public_url,
-                                'class'  => 'btn btn-success',
+                                'class'  => $btn_class,
                                 'target' => '_blank'
                             ]);
 
