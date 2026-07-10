@@ -359,8 +359,14 @@ if (empty($user)) {
   sleep(1);
 }
 
-// Get the current user's ID to store as 'created_by'
-$created_by = isset($USER->id) ? $USER->id : 364; // Default to Robot user
+// Resolve the creator user for token records.
+try {
+  $created_by = \enrol_course_tokens\local\token_creator::resolve();
+} catch (\moodle_exception $e) {
+  http_response_code(500);
+  echo json_encode(['error' => $e->getMessage()]);
+  exit;
+}
 
 // Create tokens with comprehensive retry logic
 $tokens = [];
@@ -394,7 +400,7 @@ try {
       $token->voided = '';
       $token->user_enrolments_id = null;
       $token->group_account = $group_account;
-      $token->created_by = 364; // Robot user ID.
+      $token->created_by = $created_by;
 
       $token->id = $DB->insert_record('course_tokens', $token);
 
