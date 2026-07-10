@@ -71,7 +71,16 @@ if ($hassiteconfig) {
             PARAM_URL
         ));
 
-        // 5. Corporate/Group Profile Field Mapping
+        // 5. Automated Token Creator User ID.
+        $settings->add(new admin_setting_configtext(
+            'enrol_course_tokens/tokencreatoruserid',
+            new lang_string('tokencreatoruserid', 'enrol_course_tokens'),
+            new lang_string('tokencreatoruserid_desc', 'enrol_course_tokens'),
+            '',
+            PARAM_INT
+        ));
+
+        // 6. Corporate/Group Profile Field Mapping
         $settings->add(new admin_setting_configselect(
             'enrol_course_tokens/customer_group_field',
             new lang_string('customer_group_field', 'enrol_course_tokens'),

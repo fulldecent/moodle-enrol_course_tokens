@@ -94,6 +94,20 @@ curl 'https://learn.pacificmedicaltraining.com/enrol/course_tokens/api-do-create
   }'
 ```
 
+### Configure the automated token creator user
+
+API-created tokens must record a Moodle user in the `created_by` field.
+
+Before using the API, configure a dedicated service account user ID:
+
+1. Create a dedicated Moodle account, for example `Course Token Service Account`.
+2. Copy that account's Moodle user ID.
+3. Go to `Site administration > Plugins > Enrolments > Course tokens`.
+4. Set `Automated token creator user ID` to that user ID.
+5. Keep this account active and do not use the guest account.
+
+Manual token creation from the Moodle UI still records the currently logged-in user as the token creator.
+
 ### How to generate a secret key
 
 Follow these steps to generate a secure secret_key for your plugin:
