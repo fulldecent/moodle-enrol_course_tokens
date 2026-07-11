@@ -80,6 +80,15 @@ if ($hassiteconfig) {
             PARAM_INT
         ));
 
+        // 5b. API Secret Key
+        $settings->add(new admin_setting_configtext(
+            'enrol_course_tokens/secretkey',
+            new lang_string('secretkey', 'enrol_course_tokens'),
+            new lang_string('secretkey_desc', 'enrol_course_tokens'),
+            '',
+            PARAM_RAW_TRIMMED
+        ));
+
         // 6. Corporate/Group Profile Field Mapping
         $settings->add(new admin_setting_configselect(
             'enrol_course_tokens/customer_group_field',
