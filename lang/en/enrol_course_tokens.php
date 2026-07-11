@@ -70,6 +70,10 @@ $string['tokencreatoruserid_desc'] = 'Enter the Moodle user ID to record as the 
 $string['error_missing_token_creator_user'] = 'Automated token creation is not configured. Please ask a site administrator to configure the automated token creator user ID in the Course tokens enrolment settings.';
 $string['error_invalid_token_creator_user'] = 'The configured automated token creator user is invalid, deleted, suspended, or cannot be used.';
 
+$string['secretkey'] = 'API secret key';
+$string['secretkey_desc'] = 'Secret key required by the course token creation API. Treat this like a password and rotate it if it may have been exposed.';
+$string['missingsecretkey'] = 'The course token API secret key has not been configured.';
+
 $string['customer_group_field'] = 'Corporate Group Profile Field';
 $string['customer_group_field_desc'] = 'Select the custom user profile field used to store the corporate/group account name. This maps the token order group name to a specific user field. If "None" is selected, group mapping is disabled.';
 

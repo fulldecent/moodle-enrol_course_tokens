@@ -140,7 +140,17 @@ if (!empty($json_input)) {
 // Retrieve secret key from Moodle's configuration with retry
 try {
   $valid_secret_key = retry_operation(function() {
-    $key = get_config('course_tokens', 'secretkey');
+    $key = get_config('enrol_course_tokens', 'secretkey');
+
+    if (empty($key)) {
+      $legacykey = get_config('course_tokens', 'secretkey');
+
+      if (!empty($legacykey)) {
+        $key = $legacykey;
+        set_config('secretkey', $legacykey, 'enrol_course_tokens');
+      }
+    }
+
     if (empty($key)) {
       throw new Exception("Secret key not found in config");
     }
@@ -148,7 +158,7 @@ try {
   }, MAX_RETRIES, RETRY_DELAY_MS, "Secret key retrieval");
 } catch (Exception $e) {
   http_response_code(500);
-  echo json_encode(['error' => 'Configuration error. Please try again later.']);
+  echo json_encode(['error' => get_string('missingsecretkey', 'enrol_course_tokens')]);
   exit;
 }
 

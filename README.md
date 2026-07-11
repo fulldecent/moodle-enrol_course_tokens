@@ -45,7 +45,7 @@ Only administrators have access to this page, where they can manually generate t
 Course tokens can be generated securely via an API, which requires a valid secret key for authentication. This ensures that only authorized users can create tokens. By using a unique secret key, we protect the process from unauthorized access, making this solution more secure than traditional methods. This approach ensures both flexibility and enhanced security for administrators when managing token creation programmatically.
 
 **Required parameters:**
-1. `secret_key`: string ([Here is how to generate one](#how-to-generate-a-secret-key))
+1. `secret_key`: string (set this in Site administration > Plugins > Enrolments > Course tokens > API secret key)
 2. `course_id`: integer (The ID of the course for which tokens are being created.)
 3. `email`: string (Email address of the user)
 4. `quantity`: integer (Number of tokens)
@@ -62,7 +62,7 @@ Course tokens can be generated securely via an API, which requires a valid secre
 curl 'https://learn.pacificmedicaltraining.com/enrol/course_tokens/api-do-create-token.php' \
   --header "Content-Type: application/json" \
   --data-bs-raw '{
-    "secret_key": "secret_key",
+      "secret_key": "your-api-secret-key",
     "course_id": 5,
     "email": "minicurl@example.com",
     "quantity": 1,
@@ -83,7 +83,7 @@ curl 'https://learn.pacificmedicaltraining.com/enrol/course_tokens/api-do-create
 curl 'https://learn.pacificmedicaltraining.com/enrol/course_tokens/api-do-create-token.php' \
   --header "Content-Type: application/json" \
   --data-bs-raw '{
-    "secret_key": "secret_key",
+      "secret_key": "your-api-secret-key",
     "course_id": 5,
     "email": "minicurl@example.com",
     "quantity": 1,
@@ -110,31 +110,11 @@ Manual token creation from the Moodle UI still records the currently logged-in u
 
 ### How to generate a secret key
 
-Follow these steps to generate a secure secret_key for your plugin:
-1. Create a file named `key.php` in the `course_tokens` directory.
-2. Add the following code to `key.php`:
+Set the value in `Site administration > Plugins > Enrolments > Course tokens > API secret key`.
 
-```php
-<?php
-require_once('../../config.php');
-require_login();
-require_capability('moodle/site:config', context_system::instance());
+The API request sends the key using the JSON field `secret_key`.
 
-// Set the secret key for the plugin
-$plugin_name = 'course_token'; // Replace with your plugin's name
-$secret_key = bin2hex(random_bytes(16)); // Generate a secure random key
-set_config('secretkey', $secret_key, $plugin_name);
-
-echo "Secret key for plugin '{$plugin_name}' has been set to: {$secret_key}";
-```
-
-3. Run the `key.php` file by accessing it in your browser or command line.
-
-Example:
-
-`https://yourmoodlesite.com/enrol/course_tokens/key.php`
-
-4. The `secret_key` will be displayed on your screen. Save it securely, as it will be required for all API requests.
+If you rotate the key, update any external API clients to send the new value in the existing `secret_key` JSON field.
 
 ### View tokens
 
