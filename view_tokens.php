@@ -1,10 +1,6 @@
 <?php
 require_once('../../config.php');
-// Required for generating public URL for certificates
-require_once($CFG->dirroot . '/mod/customcert/lib.php');
-if (file_exists($CFG->dirroot . '/local/mts_hacks/lib.php')) {
-    require_once($CFG->dirroot . '/local/mts_hacks/lib.php');
-}
+require_once($CFG->dirroot . '/enrol/course_tokens/lib.php');
 global $DB, $USER, $PAGE, $OUTPUT;
 
 // Ensure the user is logged in
@@ -85,7 +81,7 @@ if (!empty($tokens)) {
 
     foreach ($tokens as $token) {
         // Fetch course details
-        $course = $DB->get_record('course', ['id' => $token->course_id], 'fullname');
+        $course = $DB->get_record('course', ['id' => $token->course_id], 'id, fullname');
         $course_name = $course ? $course->fullname : 'Unknown Course';
 
         $user = null;
@@ -98,123 +94,71 @@ if (!empty($tokens)) {
         }
         $user_id = $user ? $user->id : null;
 
-        // Determine token status
+        $is_active_token = true;
+        $window_start = !empty($token->used_on) ? (int)$token->used_on : 0;
+        $window_end = null;
+
         if ($user_id) {
-            // --- NEW LOGIC: Check if this token is active or historical ---
-            $is_active_token = true;
-            $next_used_on    = time();
-
-            // $archived_record is populated below for historical tokens and used
-            // again in the eCard section — initialise to null here so it is
-            // always defined regardless of which branch executes.
-            $archived_record = null;
-
             $key = $user_id . '_' . $token->course_id;
-
             if (isset($token_timelines[$key])) {
-                $timeline     = $token_timelines[$key];
+                $timeline = $token_timelines[$key];
                 $latest_token = end($timeline);
                 if ($token->id != $latest_token->id) {
-                    $is_active_token = false; // It's a historical token
-                    // Find when the next token was activated to set the search window
+                    $is_active_token = false;
                     foreach ($timeline as $index => $tt) {
                         if ($tt->id == $token->id && isset($timeline[$index + 1])) {
-                            $next_used_on = $timeline[$index + 1]->used_on;
+                            $window_end = (int)$timeline[$index + 1]->used_on;
                             break;
                         }
                     }
                 }
             }
-            // --------------------------------------------------------------
-
-            if (!$is_active_token) {
-                // ----------------------------------------------------------------
-                // HISTORICAL TOKEN: read the locked final_status from the archive.
-                // Also fetch pdf_file_id here so the eCard section can use it
-                // without a second DB query.
-                // ----------------------------------------------------------------
-                if ($DB->get_manager()->table_exists('local_mts_hacks_archive')) {
-                    $archived_record = $DB->get_record_sql("
-                        SELECT id, final_status, pdf_file_id, cert_issue_code
-                          FROM {local_mts_hacks_archive}
-                         WHERE userid = ? AND courseid = ?
-                           AND timeissued >= ? AND timeissued <= ?
-                         ORDER BY timeissued DESC
-                         LIMIT 1
-                    ", [$user_id, $token->course_id, $token->used_on, $next_used_on]);
-                }
-
-                if ($archived_record) {
-                    // Map the locked final_status string to a display label and class.
-                    switch ($archived_record->final_status) {
-                        case 'completed':
-                            $status       = 'Completed';
-                            $status_class = 'bg-primary text-white';
-                            break;
-                        case 'failed':
-                            $status       = 'Failed';
-                            $status_class = 'bg-danger text-white';
-                            break;
-                        case 'in_progress':
-                            $status       = 'In-progress';
-                            $status_class = 'bg-warning text-dark';
-                            break;
-                        case 'assigned':
-                            $status       = 'Assigned';
-                            $status_class = 'bg-success text-white';
-                            break;
-                        default:
-                            // Older archive row written before final_status existed —
-                            // presence of an archive record still means the cycle completed.
-                            $status       = 'Completed';
-                            $status_class = 'bg-primary text-white';
-                    }
-                } else {
-                    // No archive record for this window — the cycle ended without a cert.
-                    $status       = 'Failed / Reset';
-                    $status_class = 'bg-danger text-white';
-                }
-
-            } else {
-                // ----------------------------------------------------------------
-                // ACTIVE TOKEN: use the shared status helper from mts_hacks/lib.php.
-                //
-                // This fixes two bugs vs the old inline logic:
-                //   Bug 1 (PMT): was showing "In-progress" even after cert issuance
-                //          because it only checked course_completions, not customcert_issues.
-                //          The helper checks customcert_issues first.
-                //   Bug 2 (AHA): completion check now looks at the assignment submission
-                //          file rather than only course_completions.
-                // ----------------------------------------------------------------
-                $raw_status = 'assigned';
-                if (function_exists('local_mts_hacks_get_course_status')) {
-                    $raw_status = local_mts_hacks_get_course_status($user_id, $token->course_id, $course_name, (int)$token->used_on);
-                }
-                switch ($raw_status) {
-                    case 'completed':
-                        $status       = 'Completed';
-                        $status_class = 'bg-primary text-white';
-                        break;
-                    case 'failed':
-                        $status       = 'Failed';
-                        $status_class = 'bg-danger text-white';
-                        break;
-                    case 'in_progress':
-                        $status       = 'In-progress';
-                        $status_class = 'bg-warning text-dark';
-                        break;
-                    default: // 'assigned'
-                        $status       = 'Assigned';
-                        $status_class = 'bg-success text-white';
-                }
-            }
-        } elseif (!empty($token->used_on)) {
-            $status       = 'Assigned';
-            $status_class = 'bg-success text-white';
-        } else {
-            $status       = 'Available';
-            $status_class = 'bg-secondary';
         }
+
+        $status_code = enrol_course_tokens_get_generic_token_status($token, $user_id, $window_start, $window_end);
+        $status_display = enrol_course_tokens_get_status_display($status_code);
+        $status = $status_display['label'];
+        $status_class = $status_display['class'];
+
+        $no_ecard = html_writer::tag('span', 'No eCard available', ['class' => 'text-muted']);
+        if ($user_id && $is_active_token) {
+            $ecard_actions = enrol_course_tokens_get_generic_customcert_actions(
+                $user_id,
+                $course,
+                $course_name,
+                $user,
+                $window_start,
+                $window_end
+            );
+        } elseif ($user_id) {
+            $ecard_actions = ['ecard_html' => $no_ecard, 'forward_html' => $no_ecard];
+        } else {
+            $ecard_actions = ['ecard_html' => '-', 'forward_html' => '-'];
+        }
+        $ecard_button = $ecard_actions['ecard_html'];
+        $forward_button = $ecard_actions['forward_html'];
+
+        $display_context = [
+            'token' => $token,
+            'course' => $course,
+            'course_name' => $course_name,
+            'user' => $user,
+            'user_id' => $user_id,
+            'is_active_token' => $is_active_token,
+            'window_start' => $window_start,
+            'window_end' => $window_end,
+            'default_status_code' => $status_code,
+            'default_status_label' => $status,
+            'default_status_class' => $status_class,
+            'ecard_html' => $ecard_button,
+            'forward_html' => $forward_button,
+        ];
+        $display = enrol_course_tokens_apply_token_display_callbacks($display_context);
+        $status_code = $display['status_code'];
+        $status = $display['status_label'];
+        $status_class = $display['status_class'];
+        $ecard_button = $display['ecard_html'];
+        $forward_button = $display['forward_html'];
 
         // Prepare "Used By" and "Used On" fields for display
         $used_by = $user ? $user->email : '-';
@@ -286,7 +230,7 @@ if (!empty($tokens)) {
             if (!empty($scheduled_slots)) {
                 $schedule_dates_array = [];
                 foreach ($scheduled_slots as $slot) {
-                    // Format to Eastern Time to match PMT timezone requirements
+                    // Preserve the existing reporting timezone for scheduled skills sessions.
                     $schedule_dates_array[] = userdate($slot->starttime, '%A, %d %B %Y %I:%M %p', 'America/New_York');
                 }
                 $schedule_dates_output = implode('<br>', $schedule_dates_array);
@@ -298,7 +242,7 @@ if (!empty($tokens)) {
         // ---------------------------------------------
 
         // Show "Enroll Myself" and "Enroll Somebody Else" buttons for available tokens
-        if ($status === 'Available') {
+        if ($status_code === 'available') {
             $use_token_url = new moodle_url('/enrol/course_tokens/use_token.php');
             
             // --- NEW LOGIC: Phone Requirement ---
@@ -412,235 +356,8 @@ if (!empty($tokens)) {
             echo html_writer::tag('td', '-');
         }
 
-        if ($user_id) {
-            $ecard_button   = null;
-            $forward_button = null;
-
-            // ------------------------------------------------------------------
-            // eCARD BUTTONS
-            //
-            // HISTORICAL TOKENS: serve the PDF that was physically archived at
-            // reset time.  $archived_record was fetched during status determination
-            // above and is always defined (null for active tokens).
-            //
-            // ACTIVE TOKENS: query the live Moodle tables exactly as before.
-            // ------------------------------------------------------------------
-            if (!$is_active_token) {
-
-                // Historical token — serve the immutable PDF stored by the nightly sync task.
-                // Both PMT and AHA use pdf_file_id → serve_archived_cert.php.
-                $public_url = null;
-
-                if (!empty($archived_record) && !empty($archived_record->pdf_file_id)) {
-                    // PDF was captured by the nightly sync task or inline at reset time.
-                    // Serve the immutable stored copy — correct dates, permanently frozen.
-                    $public_url = '#';
-                    if (function_exists('local_mts_hacks_get_archived_cert_url')) {
-                        $public_url = local_mts_hacks_get_archived_cert_url(
-                            $archived_record->id,
-                            $archived_record->pdf_file_id
-                        );
-                    }
-
-                    $ecard_button = html_writer::tag('a', 'View eCard', [
-                        'href'   => $public_url,
-                        'class'  => 'btn btn-success',
-                        'target' => '_blank',
-                    ]);
-
-                    $user_fulldetails = $DB->get_record('user', ['id' => $user_id],
-                        'firstname, lastname, firstnamephonetic, lastnamephonetic, middlename, alternatename');
-                    $first_name = $user_fulldetails ? $user_fulldetails->firstname : '';
-                    $last_name  = $user_fulldetails ? $user_fulldetails->lastname  : '';
-
-                    $subject        = rawurlencode("Check out {$first_name} {$last_name}'s eCard for {$course_name}");
-                    $body           = rawurlencode("eCard of {$first_name} {$last_name} for the course {$course_name} is available at:\n\n{$public_url}");
-                    $forward_button = html_writer::tag('a', 'Forward eCard', [
-                        'href'   => 'mailto:?subject=' . $subject . '&body=' . $body,
-                        'class'  => 'btn btn-primary',
-                        'target' => '_blank',
-                    ]);
-
-                } else if (!empty($archived_record) && !empty($archived_record->cert_issue_code)) {
-                    // Archive record exists and has a cert_issue_code but the PDF has not
-                    // been fetched yet (same-day inline fetch also failed).
-                    // The nightly sync task will capture it and update pdf_file_id overnight.
-                    $ecard_button   = html_writer::tag('span', 'eCard processing — check back tomorrow', ['class' => 'text-warning']);
-                    $forward_button = html_writer::tag('span', 'eCard processing — check back tomorrow', ['class' => 'text-warning']);
-
-                } else {
-                    // No archive record, or cycle ended without a cert being issued at all.
-                    $ecard_button   = html_writer::tag('span', 'No eCard available', ['class' => 'text-muted']);
-                    $forward_button = html_writer::tag('span', 'No eCard available', ['class' => 'text-muted']);
-                }
-
-            } else {
-                // Active token — existing live-table logic for AHA and PMT, unchanged.
-                $public_url = null;
-
-                // Check if course name starts with "AHA" for special handling
-                if ($course && strpos($course_name, 'AHA') === 0) {
-                    $assignments = $DB->get_records('assign', ['course' => $token->course_id]);
-                    $file_found    = false;
-                    $file_id       = null;
-                    $submission_id = null;
-
-                    // First priority: "Upload AHA provider eCard"
-                    foreach ($assignments as $assignment) {
-                        if ($assignment->name === 'Upload AHA provider eCard') {
-                            $submission = $DB->get_record('assign_submission', [
-                                'assignment' => $assignment->id,
-                                'userid'     => $user_id,
-                                'status'     => 'submitted'
-                            ]);
-                            if ($submission) {
-                                $file_submission = $DB->get_record('assignsubmission_file', ['submission' => $submission->id]);
-                                if ($file_submission && $file_submission->numfiles > 0) {
-                                    $cm      = get_coursemodule_from_instance('assign', $assignment->id, $assignment->course);
-                                    $context = context_module::instance($cm->id);
-                                    $fs      = get_file_storage();
-                                    $files   = $fs->get_area_files($context->id, 'assignsubmission_file', 'submission_files', $submission->id, 'filename', false);
-                                    if (!empty($files)) {
-                                        $file          = reset($files);
-                                        $file_id       = $file->get_id();
-                                        $submission_id = $submission->id;
-                                        $file_found    = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    // Second priority: "Upload AHA online part 1"
-                    if (!$file_found) {
-                        foreach ($assignments as $assignment) {
-                            if ($assignment->name === 'Upload AHA online part 1') {
-                                $submission = $DB->get_record('assign_submission', [
-                                    'assignment' => $assignment->id,
-                                    'userid'     => $user_id,
-                                    'status'     => 'submitted'
-                                ]);
-                                if ($submission) {
-                                    $file_submission = $DB->get_record('assignsubmission_file', ['submission' => $submission->id]);
-                                    if ($file_submission && $file_submission->numfiles > 0) {
-                                        $cm      = get_coursemodule_from_instance('assign', $assignment->id, $assignment->course);
-                                        $context = context_module::instance($cm->id);
-                                        $fs      = get_file_storage();
-                                        $files   = $fs->get_area_files($context->id, 'assignsubmission_file', 'submission_files', $submission->id, 'filename', false);
-                                        if (!empty($files)) {
-                                            $file          = reset($files);
-                                            $file_id       = $file->get_id();
-                                            $submission_id = $submission->id;
-                                            $file_found    = true;
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if ($file_found && $file_id && $submission_id) {
-                        if (function_exists('local_mts_hacks_calculate_submission_file_signature')) {
-                            $token_sig  = local_mts_hacks_calculate_submission_file_signature($file_id, $submission_id);
-                            $public_url = $CFG->wwwroot . '/local/mts_hacks/view_submission_file/view_submission_file.php?' .
-                                'file_id=' . urlencode($file_id) .
-                                '&submission_id=' . urlencode($submission_id) .
-                                '&token=' . urlencode($token_sig);
-
-                            $is_aha_online       = ($assignment->name === 'Upload AHA online part 1');
-                            $view_button_text    = $is_aha_online ? 'View AHA online part 1' : 'View eCard';
-                            $forward_button_text = $is_aha_online ? 'Forward AHA online part 1' : 'Forward eCard';
-                            $ecard_button = html_writer::tag('a', $view_button_text, [
-                                'href'   => $public_url,
-                                'class'  => 'btn btn-success',
-                                'target' => '_blank'
-                            ]);
-
-                            $user_fulldetails = $DB->get_record('user', ['id' => $user_id],
-                                'firstname, lastname, firstnamephonetic, lastnamephonetic, middlename, alternatename');
-                            $first_name = $user_fulldetails ? $user_fulldetails->firstname : '';
-                            $last_name  = $user_fulldetails ? $user_fulldetails->lastname  : '';
-
-                            $subject        = rawurlencode("Check out " . $first_name . " " . $last_name . "'s eCard for " . $course_name);
-                            $body           = rawurlencode("eCard of " . $first_name . " " . $last_name . " for the course " . $course_name . " is available at:\n\n" . $public_url);
-                            $mailto_link    = 'mailto:?subject=' . $subject . '&body=' . $body;
-                            $forward_button = html_writer::tag('a', $forward_button_text, [
-                                'href'   => $mailto_link,
-                                'class'  => 'btn btn-primary',
-                                'target' => '_blank'
-                            ]);
-                        } else {
-                            $ecard_button   = html_writer::tag('span', 'eCard feature not properly configured', ['class' => 'text-warning']);
-                            $forward_button = html_writer::tag('span', 'eCard feature not properly configured', ['class' => 'text-warning']);
-                        }
-                    } else {
-                        $ecard_button   = html_writer::tag('span', 'No eCard available', ['class' => 'text-muted']);
-                        $forward_button = html_writer::tag('span', 'No eCard available', ['class' => 'text-muted']);
-                    }
-                } else {
-                    // Standard handling for non-AHA courses
-                    if ($DB->get_manager()->table_exists('customcert_issues')) {
-                        // Fetch the most recent certificate issue for this user and course.
-                        // Added "c.name AS certname" to determine which eCard was fetched.
-                        $certificate = $DB->get_record_sql("
-                            SELECT ci.id, ci.code, ci.customcertid, ci.userid, c.name AS certname
-                            FROM {customcert_issues} ci
-                            JOIN {customcert} c ON ci.customcertid = c.id
-                            WHERE ci.userid = :userid
-                                AND c.course = :courseid
-                                AND (c.name = 'Completion eCard' OR c.name = 'Cognitive eCard')
-                            ORDER BY ci.id DESC
-                            LIMIT 1",
-                            ['userid' => $user_id, 'courseid' => $token->course_id]
-                        );
-
-                        if ($certificate && !empty($certificate->code) && function_exists('generate_public_url_for_certificate')) {
-                            $public_url   = generate_public_url_for_certificate($certificate->code);
-                            
-                            // ---Visual cue for Cognitive vs Completion eCard ---
-                            // Default to green (btn-success) for Cognitive eCard
-                            $btn_class = 'btn btn-success'; 
-                            
-                            // Use a distinct color (e.g., btn-info) for Completion eCard
-                            if ($certificate->certname === 'Completion eCard') {
-                                $btn_class = 'btn btn-info text-white'; 
-                            }
-                            // ---------------------------------------------------------------
-
-                            $ecard_button = html_writer::tag('a', 'View eCard', [
-                                'href'   => $public_url,
-                                'class'  => $btn_class,
-                                'target' => '_blank'
-                            ]);
-
-                            $user_fulldetails = $DB->get_record('user', ['id' => $user_id], 'firstname, lastname');
-                            $first_name = $user_fulldetails ? $user_fulldetails->firstname : '';
-                            $last_name  = $user_fulldetails ? $user_fulldetails->lastname  : '';
-
-                            $subject        = rawurlencode("Check out " . $first_name . " " . $last_name . "'s eCard for " . $course_name);
-                            $body           = rawurlencode("eCard of " . $first_name . " " . $last_name . " for the course " . $course_name . " is available at:\n\n" . $public_url);
-                            $mailto_link    = 'mailto:?subject=' . $subject . '&body=' . $body;
-                            $forward_button = html_writer::tag('a', 'Forward eCard', [
-                                'href'   => $mailto_link,
-                                'class'  => 'btn btn-primary',
-                                'target' => '_blank'
-                            ]);
-                        } else {
-                            $ecard_button   = html_writer::tag('span', 'No eCard available', ['class' => 'text-muted']);
-                            $forward_button = html_writer::tag('span', 'No eCard available', ['class' => 'text-muted']);
-                        }
-                    } else {
-                        $ecard_button   = html_writer::tag('span', 'eCard feature not available', ['class' => 'text-warning']);
-                        $forward_button = html_writer::tag('span', 'eCard feature not available', ['class' => 'text-warning']);
-                    }
-                }
-            }
-
-            echo html_writer::tag('td', $ecard_button);
-            echo html_writer::tag('td', $forward_button);
-        }
+        echo html_writer::tag('td', $ecard_button);
+        echo html_writer::tag('td', $forward_button);
         echo html_writer::end_tag('tr');
     }
 
@@ -804,7 +521,7 @@ echo '
     // Bootstrap modal helpers — compatible with BS5 global, BS4 via jQuery,
     // and Moodle themes that expose neither as a plain global.
     // -----------------------------------------------------------------------
-    function pmtModalShow(el) {
+    function courseTokensModalShow(el) {
         if (typeof bootstrap !== "undefined" && bootstrap.Modal) {
             new bootstrap.Modal(el, { backdrop: "static", keyboard: false }).show();
         } else if (typeof jQuery !== "undefined") {
@@ -812,7 +529,7 @@ echo '
             jQuery(el).modal("show");
         }
     }
-    function pmtModalHide(el) {
+    function courseTokensModalHide(el) {
         if (typeof bootstrap !== "undefined" && bootstrap.Modal) {
             const m = bootstrap.Modal.getInstance(el);
             if (m) m.hide();
@@ -842,22 +559,22 @@ echo '
         confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
         newBtn.addEventListener("click", function () {
             // Close this modal, then re-submit WITH confirmation flag
-            pmtModalHide(modalEl);
+            courseTokensModalHide(modalEl);
             submitEnrollForm(opts.tokenId, opts.enrollType, 1);
         });
 
         // Open the modal
-        pmtModalShow(modalEl);
+        courseTokensModalShow(modalEl);
     }
 
     // -----------------------------------------------------------------------
     // Small helpers
     // -----------------------------------------------------------------------
     function showFormError(msg) {
-        let container = document.getElementById("pmt-alert-container");
+        let container = document.getElementById("course-tokens-alert-container");
         if (!container) {
             container = document.createElement("div");
-            container.id = "pmt-alert-container";
+            container.id = "course-tokens-alert-container";
             container.style.cssText = "position:fixed;top:1rem;right:1rem;z-index:9999;min-width:320px;";
             document.body.appendChild(container);
         }
@@ -871,10 +588,10 @@ echo '
     }
 
     function showSuccessThen(msg, callback) {
-        let container = document.getElementById("pmt-alert-container");
+        let container = document.getElementById("course-tokens-alert-container");
         if (!container) {
             container = document.createElement("div");
-            container.id = "pmt-alert-container";
+            container.id = "course-tokens-alert-container";
             container.style.cssText = "position:fixed;top:1rem;right:1rem;z-index:9999;min-width:320px;";
             document.body.appendChild(container);
         }
