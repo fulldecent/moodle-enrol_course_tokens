@@ -215,7 +215,7 @@ if ($enrolled_record) {
 
     // -----------------------------------------------------------------------
     // User confirmed — trigger renewal event.
-    // The user stays enrolled; mts_hacks will listen for this event and archive progress.
+    // The user stays enrolled; optional external observers may archive progress.
     // -----------------------------------------------------------------------
     if (class_exists('\enrol_course_tokens\event\token_renewal_confirmed')) {
         $event = \enrol_course_tokens\event\token_renewal_confirmed::create([
@@ -242,7 +242,7 @@ if (!$is_renewal) {
     $enrolPlugin->enrol_user($enrolinstance, $enrol_user->id, $roleId);
 }
 
-// Trigger Generic Enrolment Event (mts_hacks will listen to this to assign AHA groups)
+// Trigger generic enrolment event for optional integrations.
 // Fired for new enrolments only. Renewals stay enrolled and don't need re-adding to groups.
 if (!$is_renewal && class_exists('\enrol_course_tokens\event\user_enrolled_via_token')) {
     $event = \enrol_course_tokens\event\user_enrolled_via_token::create([

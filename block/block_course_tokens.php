@@ -10,9 +10,7 @@ require_once($CFG->dirroot . '/lib/blocklib.php');
 require_once($CFG->dirroot . '/config.php');
 require_once($CFG->dirroot . '/blocks/moodleblock.class.php');
 require_once($CFG->libdir  . '/weblib.php');
-if (file_exists($CFG->dirroot . '/local/mts_hacks/lib.php')) {
-    require_once($CFG->dirroot . '/local/mts_hacks/lib.php');
-}
+require_once($CFG->dirroot . '/enrol/course_tokens/lib.php');
 
 class block_course_tokens extends block_base
 {
@@ -29,7 +27,7 @@ class block_course_tokens extends block_base
             return $this->content;
         }
 
-        // Define the base URL for token operations at the beginning of get_content
+        // Define the base URL for token operations at the beginning of get_content.
         $use_token_url = new moodle_url('/enrol/course_tokens/use_token.php');
 
         // SQL query to fetch tokens and course names
@@ -41,7 +39,7 @@ class block_course_tokens extends block_base
                 WHERE t.user_id = ? AND t.voided_at IS NULL
                 ORDER BY t.id DESC";
 
-        $tokens = $DB->get_records_sql($sql, [$USER->id]);
+            $tokens = $DB->get_records_sql($sql, [$USER->id]);
 
         // --- NEW LOGIC: Build timeline to isolate active vs historical ---
         $token_timelines = [];
@@ -71,7 +69,8 @@ class block_course_tokens extends block_base
         $course_data = [];
 
         foreach ($tokens as $token) {
-            $course_name = $token->course_name ?: 'Unknown Course';
+            $course = $DB->get_record('course', ['id' => $token->course_id], 'id, fullname');
+            $course_name = $course ? $course->fullname : ($token->course_name ?: 'Unknown Course');
 
             if (!isset($course_data[$course_name])) {
                 $course_data[$course_name] = [
@@ -80,28 +79,30 @@ class block_course_tokens extends block_base
                     'in_progress' => 0,
                     'completed'   => 0,
                     'failed'      => 0,
-                    'course_id'   => $token->course_id
+                    'course_id'   => $token->course_id,
                 ];
             }
 
-            $user    = null;
+            $user = null;
             $user_id = null;
             if (!empty($token->user_enrolments_id)) {
                 $enrolment = $DB->get_record('user_enrolments', ['id' => $token->user_enrolments_id], 'userid');
                 if ($enrolment) {
-                    $user    = $DB->get_record('user', ['id' => $enrolment->userid], 'id, email, firstname, lastname, phone1, address');
+                    $user = $DB->get_record('user', ['id' => $enrolment->userid], 'id, email, firstname, lastname, phone1, address');
                     $user_id = $user ? $user->id : null;
                 }
             }
 
+            $is_active_token = true;
+            $window_start = !empty($token->used_on) ? (int)$token->used_on : 0;
+            $window_end = null;
+
             if ($user_id) {
-                // Timeline Check
-                $is_active_token = true;
-                $next_used_on    = time();
-                $key             = $user_id . '_' . $token->course_id;
+                $next_used_on = null;
+                $key = $user_id . '_' . $token->course_id;
 
                 if (isset($token_timelines[$key])) {
-                    $timeline     = $token_timelines[$key];
+                    $timeline = $token_timelines[$key];
                     $latest_token = end($timeline);
                     if ($token->id != $latest_token->id) {
                         $is_active_token = false;
@@ -114,63 +115,50 @@ class block_course_tokens extends block_base
                     }
                 }
 
-                if (!$is_active_token) {
-                    // HISTORICAL TOKEN
-                    $archived_record = null;
-                    if ($DB->get_manager()->table_exists('local_mts_hacks_archive')) {
-                        $archived_record = $DB->get_record_sql("
-                            SELECT id, final_status
-                              FROM {local_mts_hacks_archive}
-                             WHERE userid = ? AND courseid = ?
-                               AND timeissued >= ? AND timeissued <= ?
-                             ORDER BY timeissued DESC
-                             LIMIT 1
-                        ", [$user_id, $token->course_id, $token->used_on, $next_used_on]);
-                    }
-
-                    if ($archived_record) {
-                        switch ($archived_record->final_status) {
-                            case 'completed':
-                                $course_data[$course_name]['completed']++;
-                                break;
-                            case 'failed':
-                                $course_data[$course_name]['failed']++;
-                                break;
-                            case 'in_progress':
-                                $course_data[$course_name]['in_progress']++;
-                                break;
-                            case 'assigned':
-                                $course_data[$course_name]['assigned']++;
-                                break;
-                            default:
-                                $course_data[$course_name]['completed']++;
-                        }
-                    } else {
-                        $course_data[$course_name]['failed']++;
-                    }
-
-                } else {
-                    // ACTIVE TOKEN
-                    $raw_status = 'assigned';
-                    if (function_exists('local_mts_hacks_get_course_status')) {
-                        $raw_status = local_mts_hacks_get_course_status($user_id, $token->course_id, $course_name, (int)$token->used_on);
-                    }
-                    switch ($raw_status) {
-                        case 'completed':
-                            $course_data[$course_name]['completed']++;
-                            break;
-                        case 'failed':
-                            $course_data[$course_name]['failed']++;
-                            break;
-                        case 'in_progress':
-                            $course_data[$course_name]['in_progress']++;
-                            break;
-                        default: // 'assigned'
-                            $course_data[$course_name]['assigned']++;
-                    }
+                if (!$is_active_token && $next_used_on !== null) {
+                    $window_end = (int)$next_used_on;
                 }
-            } else {
-                $course_data[$course_name]['available']++;
+            }
+
+            $status_code = enrol_course_tokens_get_generic_token_status($token, $user_id, $window_start, $window_end);
+            $status_display = enrol_course_tokens_get_status_display($status_code);
+
+            $display_context = [
+                'token' => $token,
+                'course' => $course,
+                'course_name' => $course_name,
+                'user' => $user,
+                'user_id' => $user_id,
+                'is_active_token' => $is_active_token,
+                'window_start' => $window_start,
+                'window_end' => $window_end,
+                'default_status_code' => $status_code,
+                'default_status_label' => $status_display['label'],
+                'default_status_class' => $status_display['class'],
+                'ecard_html' => '-',
+                'forward_html' => '-',
+            ];
+
+            $display = enrol_course_tokens_apply_token_display_callbacks($display_context);
+            $final_status_code = $display['status_code'];
+
+            switch ($final_status_code) {
+                case 'available':
+                    $course_data[$course_name]['available']++;
+                    break;
+                case 'completed':
+                    $course_data[$course_name]['completed']++;
+                    break;
+                case 'failed':
+                    $course_data[$course_name]['failed']++;
+                    break;
+                case 'in_progress':
+                    $course_data[$course_name]['in_progress']++;
+                    break;
+                case 'assigned':
+                default:
+                    $course_data[$course_name]['assigned']++;
+                    break;
             }
         }
 
@@ -580,7 +568,7 @@ class block_course_tokens extends block_base
             // Bootstrap modal helpers — compatible with BS5 global, BS4/jQuery,
             // and Moodle themes that expose neither as a plain global.
             // ---------------------------------------------------------------
-            function pmtModalShow(el) {
+            function courseTokensModalShow(el) {
                 if (typeof bootstrap !== "undefined" && bootstrap.Modal) {
                     new bootstrap.Modal(el, { backdrop: "static", keyboard: false }).show();
                 } else if (typeof jQuery !== "undefined") {
@@ -588,7 +576,7 @@ class block_course_tokens extends block_base
                     jQuery(el).modal("show");
                 }
             }
-            function pmtModalHide(el) {
+            function courseTokensModalHide(el) {
                 if (typeof bootstrap !== "undefined" && bootstrap.Modal) {
                     const m = bootstrap.Modal.getInstance(el);
                     if (m) m.hide();
@@ -619,21 +607,21 @@ class block_course_tokens extends block_base
                 const newBtn = confirmBtn.cloneNode(true);
                 confirmBtn.parentNode.replaceChild(newBtn, confirmBtn);
                 newBtn.addEventListener("click", function () {
-                    pmtModalHide(modalEl);
+                    courseTokensModalHide(modalEl);
                     submitEnrollForm(opts.tokenId, opts.enrollType, 1);
                 });
 
-                pmtModalShow(modalEl);
+                courseTokensModalShow(modalEl);
             }
 
             // ---------------------------------------------------------------
             // showAlertBanner — non-blocking in-page notification
             // ---------------------------------------------------------------
             function showAlertBanner(msg, type) {
-                let container = document.getElementById("pmt-block-alert-container");
+                let container = document.getElementById("course-tokens-block-alert-container");
                 if (!container) {
                     container = document.createElement("div");
-                    container.id = "pmt-block-alert-container";
+                    container.id = "course-tokens-block-alert-container";
                     container.style.cssText = "position:fixed;top:1rem;right:1rem;z-index:9999;min-width:300px;";
                     document.body.appendChild(container);
                 }

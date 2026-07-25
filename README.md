@@ -59,7 +59,7 @@ Course tokens can be generated securely via an API, which requires a valid secre
 **cURL example ith optional parameters (`group_account` and `extra_json`):**
 
 ```bash
-curl 'https://learn.pacificmedicaltraining.com/enrol/course_tokens/api-do-create-token.php' \
+curl 'https://example.com/enrol/course_tokens/api-do-create-token.php' \
   --header "Content-Type: application/json" \
   --data-bs-raw '{
       "secret_key": "your-api-secret-key",
@@ -80,7 +80,7 @@ curl 'https://learn.pacificmedicaltraining.com/enrol/course_tokens/api-do-create
 **cURL example without the optional parameters (i.e., `group_account` and `extra_json`):**
 
 ```bash
-curl 'https://learn.pacificmedicaltraining.com/enrol/course_tokens/api-do-create-token.php' \
+curl 'https://example.com/enrol/course_tokens/api-do-create-token.php' \
   --header "Content-Type: application/json" \
   --data-bs-raw '{
       "secret_key": "your-api-secret-key",
