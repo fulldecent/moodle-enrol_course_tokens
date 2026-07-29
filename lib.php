@@ -375,10 +375,16 @@ function enrol_course_tokens_get_generic_customcert_actions($userid, $course, $c
     }
 
     $publicurl = generate_public_url_for_certificate($certificate->code);
-    $result['ecard_html'] = html_writer::tag('a', 'View eCard', [
+    $ecardlabel = trim((string)$certificate->certname);
+    if ($ecardlabel === '') {
+        $ecardlabel = 'eCard';
+    }
+
+    $result['ecard_html'] = html_writer::tag('a', format_string($ecardlabel), [
         'href' => $publicurl,
         'class' => 'btn btn-success',
         'target' => '_blank',
+        'rel' => 'noopener noreferrer',
     ]);
 
     $firstname = $user ? $user->firstname : '';
