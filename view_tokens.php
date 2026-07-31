@@ -480,7 +480,7 @@ echo '
 
             case "success":
                 // Successful "Enroll Somebody Else"
-                showSuccessThen(data.message || "Enrolment successful!", function () {
+                showSuccessThen(data.message || "Enrollment successful!", function () {
                     location.reload();
                 });
                 break;

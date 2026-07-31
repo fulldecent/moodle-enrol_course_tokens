@@ -71,7 +71,7 @@ foreach (enrol_get_instances($course->id, true) as $instance) {
     }
 }
 if (!$enrolinstance) {
-    json_response(['status' => 'error', 'message' => 'Course token enrolment method not enabled for this course.']);
+    json_response(['status' => 'error', 'message' => 'Course token enrollment method not enabled for this course.']);
 }
 
 // ---------------------------------------------------------------------------
@@ -134,7 +134,7 @@ if ($is_phone_required) {
     if (empty($phone_number) && empty($enrol_user->phone1)) {
         json_response([
             'status' => 'error',
-            'message' => 'A phone number is required to enrol in this course.'
+            'message' => 'A phone number is required to enroll in this course.'
         ]);
     }
 }
@@ -298,7 +298,7 @@ if ($USER->id !== $enrol_user->id) {
         email_to_user($token_owner, $from_user,
             "Your course token has been used",
             "Dear {$token_owner->firstname} {$token_owner->lastname},\n\n"
-            . "Your token '{$token->code}' was used to enrol "
+            . "Your token '{$token->code}' was used to enroll "
             . "{$enrol_user->firstname} {$enrol_user->lastname} ({$enrol_user->email})"
             . " in: {$course->fullname}."
         );
