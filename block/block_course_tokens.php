@@ -525,12 +525,12 @@ class block_course_tokens extends block_base
             function handleResponse(data, tokenId, type) {
                 switch (data.status) {
                     case "redirect":
-                        showAlertBanner(data.message || "Enrolment successful!", "success");
+                        showAlertBanner(data.message || "Enrollment successful!", "success");
                         setTimeout(() => { window.location.href = data.redirect_url; }, 1800);
                         break;
 
                     case "success":
-                        showAlertBanner(data.message || "Enrolment successful!", "success");
+                        showAlertBanner(data.message || "Enrollment successful!", "success");
                         setTimeout(() => location.reload(), 1800);
                         break;
 

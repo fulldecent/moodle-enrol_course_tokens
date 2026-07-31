@@ -1,6 +1,6 @@
 # Course tokens plugin
 
-The course tokens plugin offers a simple yet powerful way to manage course enrollments in Moodle using single-use tokens. With course tokens, users can quickly create an account (if they don’t already have one) and enroll in a course—no manual enrolment required.
+The course tokens plugin offers a simple yet powerful way to manage course enrollments in Moodle using single-use tokens. With course tokens, users can quickly create an account (if they do not already have one) and enroll in a course; no manual enrollment required.
 
 This makes the plugin ideal for training providers, organizations, and institutions who need a secure, scalable, and flexible enrollment solution.
 
@@ -36,7 +36,7 @@ Supported Moodle versions: ![CI status](https://github.com/fulldecent/moodle-loc
   Assign tokens in bulk to teams or organizations for group enrollments.
 
 - **Seamless Moodle integration**
-  Enable course tokens as an enrollment method from `Site Administration > Plugins > Enrol plugins`.
+   Enable course tokens as an enrollment method from `Site Administration > Plugins > Enrollment plugins`.
 
 Only administrators have access to this page, where they can manually generate tokens for course enrollment. This allows for customized enrollment management within the system.
 
@@ -45,7 +45,7 @@ Only administrators have access to this page, where they can manually generate t
 Course tokens can be generated securely via an API, which requires a valid secret key for authentication. This ensures that only authorized users can create tokens. By using a unique secret key, we protect the process from unauthorized access, making this solution more secure than traditional methods. This approach ensures both flexibility and enhanced security for administrators when managing token creation programmatically.
 
 **Required parameters:**
-1. `secret_key`: string (set this in Site administration > Plugins > Enrolments > Course tokens > API secret key)
+1. `secret_key`: string (set this in Site administration > Plugins > Enrollments > Course tokens > API secret key)
 2. `course_id`: integer (The ID of the course for which tokens are being created.)
 3. `email`: string (Email address of the user)
 4. `quantity`: integer (Number of tokens)
@@ -56,7 +56,7 @@ Course tokens can be generated securely via an API, which requires a valid secre
 1. `extra_json`: JSON object (Additional data related to the token creation. Stored as a JSON string.)
 2. `group_account`: string (Specifies the group or corporate account associated with the token.)
 
-**cURL example ith optional parameters (`group_account` and `extra_json`):**
+**cURL example with optional parameters (`group_account` and `extra_json`):**
 
 ```bash
 curl 'https://example.com/enrol/course_tokens/api-do-create-token.php' \
@@ -102,7 +102,7 @@ Before using the API, configure a dedicated service account user ID:
 
 1. Create a dedicated Moodle account, for example `Course Token Service Account`.
 2. Copy that account's Moodle user ID.
-3. Go to `Site administration > Plugins > Enrolments > Course tokens`.
+3. Go to `Site administration > Plugins > Enrollments > Course tokens`.
 4. Set `Automated token creator user ID` to that user ID.
 5. Keep this account active and do not use the guest account.
 
@@ -110,7 +110,7 @@ Manual token creation from the Moodle UI still records the currently logged-in u
 
 ### How to generate a secret key
 
-Set the value in `Site administration > Plugins > Enrolments > Course tokens > API secret key`.
+Set the value in `Site administration > Plugins > Enrollments > Course tokens > API secret key`.
 
 The API request sends the key using the JSON field `secret_key`.
 
@@ -136,7 +136,7 @@ This will generate a "Course Tokens" block with the same features and informatio
 
 ### :gear: Site administration page
 
-Enable course tokens as an enrollment method by navigating to `Site administration > Plugins > Enrol plugins > Course Tokens`.
+Enable course tokens as an enrollment method by navigating to `Site administration > Plugins > Enrollment plugins > Course Tokens`.
 
 ## Placement of the plugin
 
