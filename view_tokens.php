@@ -436,6 +436,7 @@ echo '
         }
 
         const formData = new FormData(form);
+        formData.set("sesskey", M.cfg.sesskey);
         if (confirmRenewal) {
             formData.set("confirm_renewal", "1");
         }
@@ -509,10 +510,24 @@ echo '
                 });
                 break;
 
+            case "renewal_retry":
+                // The backend rolled the renewal back. The token remains available,
+                // so reload to show the unchanged state and allow a safe retry.
+                showFormError(
+                    data.message
+                    || "The renewal was stopped safely. Please try again or contact site support."
+                );
+                setTimeout(function () { location.reload(); }, 3500);
+                break;
+
+            case "renewal_check":
+                showFormError(data.message || "We could not confirm the renewal status. Please refresh before retrying.");
+                break;
+
             case "error":
             default:
                 showFormError(data.message || "An unexpected error occurred.");
-                location.reload();
+                setTimeout(function () { location.reload(); }, 3000);
                 break;
         }
     }

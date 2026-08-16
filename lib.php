@@ -434,6 +434,46 @@ function enrol_course_tokens_flatten_token_display_callbacks($callbacks)
 }
 
 /**
+ * Runs required synchronous pre-renewal callbacks from other plugins.
+ *
+ * These callbacks are part of the renewal request itself, unlike Moodle event
+ * observers. Any exception or explicit false result aborts the renewal before
+ * the token is consumed. At least one handler is required because this plugin
+ * cannot safely reset arbitrary course activity data by itself.
+ *
+ * Callback name: <component>_enrol_course_tokens_before_renewal(array $context)
+ *
+ * @param array $context Renewal context.
+ * @return int Number of callbacks executed.
+ * @throws \RuntimeException If no handler exists or a handler reports failure.
+ */
+function enrol_course_tokens_run_before_renewal_callbacks(array $context): int
+{
+    $callbacks = get_plugins_with_function('enrol_course_tokens_before_renewal', 'lib.php');
+    $executed = 0;
+
+    foreach (enrol_course_tokens_flatten_token_display_callbacks($callbacks) as $callback) {
+        if (!is_callable($callback)) {
+            continue;
+        }
+
+        $executed++;
+        $result = $callback($context);
+        if ($result === false) {
+            throw new \RuntimeException('A pre-renewal callback reported failure.');
+        }
+    }
+
+    if ($executed === 0) {
+        throw new \RuntimeException(
+            'No pre-renewal reset handler is registered. Renewal was stopped safely.'
+        );
+    }
+
+    return $executed;
+}
+
+/**
  * Applies optional token display callbacks from other plugins.
  *
  * @param array $context Token display context.
