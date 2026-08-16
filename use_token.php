@@ -36,6 +36,25 @@ function ensure_optional_name_fields(&$user): void {
 }
 
 // ---------------------------------------------------------------------------
+// VALIDATE REQUEST
+// ---------------------------------------------------------------------------
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
+    json_response([
+        'status' => 'error',
+        'message' => 'Invalid request method.',
+    ]);
+}
+
+try {
+    require_sesskey();
+} catch (\moodle_exception $e) {
+    json_response([
+        'status' => 'error',
+        'message' => 'Your session has expired. Please refresh the page and try again.',
+    ]);
+}
+
+// ---------------------------------------------------------------------------
 // VALIDATE TOKEN
 // ---------------------------------------------------------------------------
 $token_code = required_param('token_code', PARAM_TEXT);
@@ -150,8 +169,8 @@ if ($is_phone_required) {
 //   confirm_renewal = 1.
 //
 // Second POST (confirm_renewal = 1):
-//   Call manager::reset_user_course() to wipe all activity progress, then
-//   mark the token as used. The user stays enrolled — no unenrol/re-enrol.
+//   Run the required synchronous pre-renewal reset callback, verify it, and
+//   mark the token used in the same transaction. The user stays enrolled.
 //   Moodle's own reset covers: quizzes, assignments, scheduler, SCORM, H5P,
 //   lessons, completion records, and the completion cache.
 //
@@ -214,23 +233,236 @@ if ($enrolled_record) {
     }
 
     // -----------------------------------------------------------------------
-    // User confirmed — trigger renewal event.
-    // The user stays enrolled; optional external observers may archive progress.
+    // User confirmed — perform the renewal as one atomic operation.
+    //
+    // Required reset/archive work is synchronous and runs BEFORE token use.
+    // The token update is committed in the same transaction. If any required
+    // step throws, the database rollback restores the learner's previous state
+    // and leaves the token unused. A Moodle lock prevents concurrent requests
+    // from resetting the same learner/course cycle at the same time.
     // -----------------------------------------------------------------------
-    if (class_exists('\enrol_course_tokens\event\token_renewal_confirmed')) {
-        $event = \enrol_course_tokens\event\token_renewal_confirmed::create([
-            'objectid'      => $token->id, // Add this line
-            'context'       => context_course::instance($course->id),
-            'relateduserid' => $enrol_user->id,
-            'other'         => [
-                'token_id'  => $token->id, 
-                'course_id' => $course->id
-            ]
+    require_once($CFG->dirroot . '/enrol/course_tokens/lib.php');
+
+    // Keep the public plugin generic: use Moodle's configured support contact.
+    $supportcontact = !empty($CFG->supportemail)
+        ? trim((string) $CFG->supportemail)
+        : 'site support';
+
+    try {
+        $lockfactory = \core\lock\lock_config::get_lock_factory('enrol_course_tokens_renewal');
+        $lockresource = 'user:' . (int) $enrol_user->id . ':course:' . (int) $course->id;
+        $lock = $lockfactory->get_lock($lockresource, 5);
+    } catch (\Throwable $e) {
+        error_log(
+            'enrol_course_tokens: could not acquire renewal lock for token '
+                . (int) $token->id . ': ' . $e->getMessage()
+        );
+        json_response([
+            'status' => 'renewal_retry',
+            'message' => 'We could not safely start the renewal. Nothing was changed and the token was not used. '
+                . 'Please try again. If the problem continues, contact ' . $supportcontact . ' for assistance.',
         ]);
-        $event->trigger();
     }
 
-    $is_renewal = true;
+    if (!$lock) {
+        json_response([
+            'status' => 'renewal_retry',
+            'message' => 'Another renewal request is currently processing for this course. '
+                . 'Nothing was changed and the token was not used. Please try again in a few seconds. '
+                . 'If the problem continues, contact ' . $supportcontact . ' for assistance.',
+        ]);
+    }
+
+    $renewalerror = null;
+    $resettime = time();
+    $transaction = null;
+    $commitattempted = false;
+    $commitstate = 'not_attempted';
+
+    try {
+        // Re-read mutable records after acquiring the lock. This closes the
+        // double-click/race window between initial validation and consumption.
+        $fresh_token = $DB->get_record('course_tokens', ['id' => $token->id], '*', MUST_EXIST);
+
+        if ((int) $fresh_token->user_id !== (int) $USER->id) {
+            throw new \RuntimeException('The token owner changed during renewal.');
+        }
+        if (!empty($fresh_token->voided)) {
+            throw new \RuntimeException('The token was voided before renewal could complete.');
+        }
+        if (!empty($fresh_token->user_enrolments_id) || !empty($fresh_token->used_on)) {
+            throw new \RuntimeException('The token has already been used.');
+        }
+
+        $fresh_enrolled_record = $DB->get_record_sql(
+            "SELECT ue.id
+               FROM {user_enrolments} ue
+               JOIN {enrol} e ON ue.enrolid = e.id
+              WHERE e.courseid = ? AND ue.userid = ?",
+            [$course->id, $enrol_user->id],
+            IGNORE_MULTIPLE
+        );
+
+        if (!$fresh_enrolled_record) {
+            throw new \RuntimeException(
+                'The existing enrolment disappeared before renewal could complete.'
+            );
+        }
+
+        $transaction = $DB->start_delegated_transaction();
+
+        enrol_course_tokens_run_before_renewal_callbacks([
+            'userid' => (int) $enrol_user->id,
+            'courseid' => (int) $course->id,
+            'tokenid' => (int) $fresh_token->id,
+            'resettime' => $resettime,
+            // The caller owns the transaction so the reset and token use are atomic.
+            'caller_manages_transaction' => true,
+        ]);
+
+        $fresh_token->user_enrolments_id = (int) $fresh_enrolled_record->id;
+        $fresh_token->used_on = $resettime;
+        $fresh_token->timemodified = time();
+        $DB->update_record('course_tokens', $fresh_token);
+
+        // Postconditions inside the transaction: do not commit unless the exact
+        // token is now linked to the expected existing enrolment.
+        $usedcheck = $DB->get_record(
+            'course_tokens',
+            ['id' => $fresh_token->id],
+            'id, user_enrolments_id, used_on',
+            MUST_EXIST
+        );
+        if ((int) $usedcheck->user_enrolments_id !== (int) $fresh_enrolled_record->id
+                || (int) $usedcheck->used_on !== $resettime) {
+            throw new \RuntimeException('Token consumption verification failed.');
+        }
+
+        $commitattempted = true;
+        $transaction->allow_commit();
+        $transaction = null;
+        $commitstate = 'committed';
+
+        $token = $fresh_token;
+        $enrolled_record = $fresh_enrolled_record;
+        $is_renewal = true;
+
+    } catch (\Throwable $e) {
+        $renewalerror = $e;
+
+        if ($transaction) {
+            try {
+                $transaction->rollback($e);
+            } catch (\Throwable $rollbackexception) {
+                // rollback() normally rethrows the supplied exception. Keep the
+                // rollback exception only for diagnostics; the user sees a safe
+                // generic message below.
+                $renewalerror = $rollbackexception;
+            }
+            $transaction = null;
+        }
+    } finally {
+        $lock->release();
+    }
+
+    if ($renewalerror) {
+        error_log(
+            'enrol_course_tokens: atomic renewal failed for token ' . (int) $token->id
+                . ', user ' . (int) $enrol_user->id
+                . ', course ' . (int) $course->id
+                . ': ' . $renewalerror->getMessage()
+        );
+
+        // A failure before allow_commit() is a normal rollback case: the token and
+        // reset DML were in one transaction and remain unchanged. If allow_commit()
+        // itself threw (for example, the DB connection dropped during COMMIT), the
+        // outcome can be indeterminate. Re-read authoritative token state when
+        // possible instead of incorrectly promising that the token is unused.
+        if ($commitattempted) {
+            try {
+                $statecheck = $DB->get_record(
+                    'course_tokens',
+                    ['id' => $token->id],
+                    'id, user_enrolments_id, used_on',
+                    MUST_EXIST
+                );
+
+                if ((int) $statecheck->user_enrolments_id === (int) $fresh_enrolled_record->id
+                        && (int) $statecheck->used_on === $resettime) {
+                    // The commit actually completed despite the connection/error path.
+                    $token = $DB->get_record('course_tokens', ['id' => $token->id], '*', MUST_EXIST);
+                    $enrolled_record = $fresh_enrolled_record;
+                    $is_renewal = true;
+                    $renewalerror = null;
+                    $commitstate = 'committed_after_recheck';
+                } elseif (empty($statecheck->user_enrolments_id) && empty($statecheck->used_on)) {
+                    $commitstate = 'rolled_back';
+                } else {
+                    $commitstate = 'indeterminate';
+                }
+            } catch (\Throwable $stateexception) {
+                $commitstate = 'indeterminate';
+                error_log(
+                    'enrol_course_tokens: could not determine renewal commit outcome for token '
+                        . (int) $token->id . ': ' . $stateexception->getMessage()
+                );
+            }
+        } else {
+            $commitstate = 'rolled_back';
+        }
+
+        if ($renewalerror && $commitstate === 'indeterminate') {
+            json_response([
+                'status' => 'renewal_check',
+                'message' => 'We could not confirm the final renewal status. Please refresh your token dashboard '
+                    . 'before trying again. If the token still appears available, you may retry it. If it appears used '
+                    . 'or the problem continues, contact ' . $supportcontact . ' for assistance.',
+            ]);
+        }
+
+        if ($renewalerror) {
+            json_response([
+                'status' => 'renewal_retry',
+                'message' => 'We could not safely complete the renewal. Your previous course progress was preserved '
+                    . 'and the token was not used. Please try again. If the problem continues, contact '
+                    . $supportcontact . ' for assistance.',
+            ]);
+        }
+    }
+
+    // The atomic reset + token consumption has committed. The event is now
+    // informational/post-commit only; it must never be responsible for the
+    // destructive reset itself.
+    try {
+        if (class_exists('\enrol_course_tokens\event\token_renewal_confirmed')) {
+            $event = \enrol_course_tokens\event\token_renewal_confirmed::create([
+                'objectid' => $token->id,
+                'context' => context_course::instance($course->id),
+                'relateduserid' => $enrol_user->id,
+                'other' => [
+                    'token_id' => $token->id,
+                    'course_id' => $course->id,
+                ],
+            ]);
+            $event->trigger();
+        }
+    } catch (\Throwable $e) {
+        error_log(
+            'enrol_course_tokens: post-renewal event failed after successful atomic renewal for token '
+                . (int) $token->id . ': ' . $e->getMessage()
+        );
+    }
+
+    // Best-effort post-commit cache warm-up. The required cache purge is part
+    // of the reset callback; failure to warm here does not invalidate the DB state.
+    try {
+        get_fast_modinfo((int) $course->id, 0, true);
+    } catch (\Throwable $e) {
+        error_log(
+            'enrol_course_tokens: post-renewal modinfo refresh failed for course '
+                . (int) $course->id . ': ' . $e->getMessage()
+        );
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -270,10 +502,10 @@ if (!$userEnrolment && $enrolled_record) {
     $userEnrolment = $enrolled_record;
 }
 
-if ($userEnrolment) {
+if ($userEnrolment && !$is_renewal) {
     $token->user_enrolments_id = $userEnrolment->id;
     $token->used_on            = time();
-    $token->used_by            = $enrol_email ?: $USER->email;
+    $token->timemodified       = time();
     $DB->update_record('course_tokens', $token);
 }
 

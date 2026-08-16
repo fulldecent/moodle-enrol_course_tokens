@@ -490,6 +490,7 @@ class block_course_tokens extends block_base
                 }
 
                 const formData = new FormData(form);
+                formData.set("sesskey", M.cfg.sesskey);
                 if (confirmRenewal) {
                     formData.set("confirm_renewal", "1");
                 }
@@ -554,6 +555,21 @@ class block_course_tokens extends block_base
                             tokenId     : tokenId,
                             enrollType  : type
                         });
+                        break;
+
+                    case "renewal_retry":
+                        // The backend rolled the renewal back. Reload after showing
+                        // the message so the still-available token can be retried.
+                        showAlertBanner(
+                            data.message
+                                || "The renewal was stopped safely. Please try again or contact site support.",
+                            "danger"
+                        );
+                        setTimeout(() => location.reload(), 3500);
+                        break;
+
+                    case "renewal_check":
+                        showAlertBanner(data.message || "We could not confirm the renewal status. Please refresh before retrying.", "warning");
                         break;
 
                     case "error":
