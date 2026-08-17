@@ -233,8 +233,13 @@ function enrol_course_tokens_get_generic_token_status($token, $userid, $windowst
 {
     global $DB;
 
-    if (empty($token->used_on)) {
+    if (\enrol_course_tokens\local\lifecycle_service::is_available($token)) {
         return 'available';
+    }
+
+    // Contradictory lifecycle fields and detached consumed cycles fail closed.
+    if (!\enrol_course_tokens\local\lifecycle_service::is_consumed($token)) {
+        return 'assigned';
     }
 
     if (empty($userid)) {
@@ -523,6 +528,16 @@ function enrol_course_tokens_apply_token_display_callbacks(array $context)
         $context['default_status_class'] = $display['status_class'];
         $context['ecard_html'] = $display['ecard_html'];
         $context['forward_html'] = $display['forward_html'];
+    }
+
+    // Extensions may customise presentation, but cannot advertise ambiguous or
+    // consumed state as inventory.
+    if ($display['status_code'] === 'available'
+            && !\enrol_course_tokens\local\lifecycle_service::is_available($context['token'])) {
+        $display['status_code'] = 'assigned';
+        $statusdisplay = enrol_course_tokens_get_status_display('assigned');
+        $display['status_label'] = $statusdisplay['label'];
+        $display['status_class'] = $statusdisplay['class'];
     }
 
     return $display;

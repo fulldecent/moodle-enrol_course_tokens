@@ -34,7 +34,7 @@ class block_course_tokens extends block_base
         $sql = "SELECT t.*, u.email as enrolled_user_email, u.id as student_id, c.fullname as course_name
                 FROM {course_tokens} t
                 LEFT JOIN {user_enrolments} ue ON t.user_enrolments_id = ue.id
-                LEFT JOIN {user} u ON ue.userid = u.id
+                LEFT JOIN {user} u ON u.id = COALESCE(t.used_by_user_id, ue.userid)
                 JOIN {course} c ON t.course_id = c.id
                 WHERE t.user_id = ? AND t.voided_at IS NULL
                 ORDER BY t.id DESC";
@@ -45,14 +45,15 @@ class block_course_tokens extends block_base
         $token_timelines = [];
         if ($tokens) {
             foreach ($tokens as $t) {
-                if (!empty($t->used_on) && !empty($t->student_id)) {
+                if ($t->used_on !== null && !empty($t->student_id)) {
                     $key = $t->student_id . '_' . $t->course_id;
                     $token_timelines[$key][] = $t;
                 }
             }
             foreach ($token_timelines as $key => $group) {
                 usort($token_timelines[$key], function($a, $b) {
-                    return $a->used_on <=> $b->used_on;
+                    $bytime = (int) $a->used_on <=> (int) $b->used_on;
+                    return $bytime !== 0 ? $bytime : ((int) $a->id <=> (int) $b->id);
                 });
             }
         }
@@ -85,16 +86,14 @@ class block_course_tokens extends block_base
 
             $user = null;
             $user_id = null;
-            if (!empty($token->user_enrolments_id)) {
-                $enrolment = $DB->get_record('user_enrolments', ['id' => $token->user_enrolments_id], 'userid');
-                if ($enrolment) {
-                    $user = $DB->get_record('user', ['id' => $enrolment->userid], 'id, email, firstname, lastname, phone1, address');
-                    $user_id = $user ? $user->id : null;
-                }
+            $learnerid = \enrol_course_tokens\local\lifecycle_service::get_learner_id($token);
+            if ($learnerid !== null) {
+                $user = $DB->get_record('user', ['id' => $learnerid], 'id, email, firstname, lastname, phone1, address');
+                $user_id = $user ? $user->id : null;
             }
 
-            $is_active_token = true;
-            $window_start = !empty($token->used_on) ? (int)$token->used_on : 0;
+            $is_active_token = \enrol_course_tokens\local\lifecycle_service::is_active_consumed_token($token);
+            $window_start = $token->used_on !== null ? (int)$token->used_on : 0;
             $window_end = null;
 
             if ($user_id) {
@@ -105,7 +104,6 @@ class block_course_tokens extends block_base
                     $timeline = $token_timelines[$key];
                     $latest_token = end($timeline);
                     if ($token->id != $latest_token->id) {
-                        $is_active_token = false;
                         foreach ($timeline as $index => $tt) {
                             if ($tt->id == $token->id && isset($timeline[$index + 1])) {
                                 $next_used_on = $timeline[$index + 1]->used_on;
@@ -240,7 +238,8 @@ class block_course_tokens extends block_base
             $this->content->text .= html_writer::tag('td', format_string($course_name), ['class' => 'text-center col-2']);
 
             $available_tokens = array_filter($tokens, function($token) use ($counts) {
-                return $token->course_id == $counts['course_id'] && $token->user_enrolments_id === null;
+                return $token->course_id == $counts['course_id']
+                    && \enrol_course_tokens\local\lifecycle_service::is_available($token);
             });
             $token = reset($available_tokens);
 
