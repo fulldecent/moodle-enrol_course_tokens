@@ -58,14 +58,14 @@ $countsql = "SELECT COUNT(1)
           LEFT JOIN {user} c ON c.id = t.created_by
           LEFT JOIN {user} p ON p.id = t.user_id
           LEFT JOIN {user_enrolments} ue ON ue.id = t.user_enrolments_id
-          LEFT JOIN {user} u ON u.id = ue.userid
+          LEFT JOIN {user} u ON u.id = COALESCE(t.used_by_user_id, ue.userid)
              $whereclause";
 $totalcount = $DB->count_records_sql($countsql, $params);
 
 // Load from database with JOINs, applying the WHERE clauses and pagination
 $sql = "SELECT t.id, t.timecreated, t.timemodified, t.code, t.course_id,
                t.voided, t.voided_at, t.voided_notes, t.user_enrolments_id,
-               t.extra_json, t.user_id, t.used_on, t.group_account, t.created_by,
+               t.extra_json, t.user_id, t.used_by_user_id, t.used_on, t.group_account, t.created_by,
                c.email AS creator_email,
                p.email AS purchaser_email,
                u.id AS used_userid,
@@ -78,7 +78,7 @@ $sql = "SELECT t.id, t.timecreated, t.timemodified, t.code, t.course_id,
      LEFT JOIN {user} c ON c.id = t.created_by
      LEFT JOIN {user} p ON p.id = t.user_id
      LEFT JOIN {user_enrolments} ue ON ue.id = t.user_enrolments_id
-     LEFT JOIN {user} u ON u.id = ue.userid
+     LEFT JOIN {user} u ON u.id = COALESCE(t.used_by_user_id, ue.userid)
      $whereclause
       ORDER BY t.timecreated DESC";
 
@@ -234,6 +234,7 @@ echo '</thead>';
 echo '<tbody>';
 
 foreach ($tokens as $token) {
+        $can_unenrol = \enrol_course_tokens\local\lifecycle_service::get_refundable_enrolment($token) !== null;
         // Add bg-danger class for voided tokens
         $rowClass = $token->voided ? ' class="bg-danger text-white"' : '';
         echo '<tr' . $rowClass . '>';
@@ -261,7 +262,7 @@ foreach ($tokens as $token) {
         echo '<td>' . $group_account . '</td>';
 
         // Display "Used By" and "Used At" details (from JOIN)
-        if (!empty($token->user_enrolments_id) && !empty($token->used_userid)) {
+        if ($token->used_on !== null && !empty($token->used_userid)) {
             $used_by = s($token->used_email);
             $phone = !empty($token->used_phone) ? s($token->used_phone) : 'N/A';
             $address = !empty($token->used_address) ? s($token->used_address) : 'N/A';
@@ -303,7 +304,7 @@ foreach ($tokens as $token) {
             echo '<td>-</td>';
         }
 
-        if (!empty($token->user_enrolments_id) && !empty($token->used_userid)) {
+        if ($can_unenrol) {
             $user_email = s($token->used_email); // Get the correct enrolled user's email
             $token_id = (int) $token->id; // Ensure token ID is passed correctly
             echo '<td>
@@ -322,7 +323,6 @@ foreach ($tokens as $token) {
 
         if (!empty($token->id)) {
             $token_id = (int) $token->id;
-            $is_used = !empty($token->used_on);
 
             $user_email = !empty($token->used_userid) ? s($token->used_email) : null;
 
@@ -331,12 +331,12 @@ foreach ($tokens as $token) {
                 echo '<button type="button" class="btn btn-success unvoid-token-btn"
                     data-bs-toggle="tooltip"
                     data-bs-placement="top"
-                    title="Clicking this will unvoid the token, making it usable again."
+                    title="Unvoiding removes the void flag. Existing usage history is preserved."
                     data-bs-token-id="' . $token->id . '">
                     Unvoid Token
                 </button>';
             } else {
-                $tooltipText = $is_used
+                $tooltipText = $can_unenrol
                     ? 'Clicking this will void the token and will unenroll ' . $user_email . ' from the course. All progress will be lost.'
                     : 'Clicking this will void the token.';
 
@@ -346,7 +346,7 @@ foreach ($tokens as $token) {
                             title="' . $tooltipText . '"
                             data-bs-token-id="' . $token->id . '"
                             data-bs-user-email="' . ($user_email ?? '') . '"
-                            data-bs-is-used="' . ($is_used ? '1' : '0') . '">
+                            data-bs-can-unenroll="' . ($can_unenrol ? '1' : '0') . '">
                             Void Token
                         </button>';
             }
@@ -420,7 +420,7 @@ echo '
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                Are you sure you want to unvoid this token? This action will make it usable again.
+                Are you sure you want to unvoid this token? Existing usage history will be preserved.
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -552,10 +552,10 @@ const setupVoidUnvoidHandlers = () => {
 // Handle void token logic
 const handleVoidToken = (button, tokenId) => {
     const userEmail = button.getAttribute("data-bs-user-email");
-    const isUsed = button.getAttribute("data-bs-is-used") === "1";
+    const canUnenroll = button.getAttribute("data-bs-can-unenroll") === "1";
 
     document.getElementById("voidTokenId").value = tokenId;
-    document.getElementById("voidTokenWarning").textContent = isUsed
+    document.getElementById("voidTokenWarning").textContent = canUnenroll
         ? `Clicking this will void the token and will unenroll ${userEmail} from the course. All progress will be lost.`
         : "Clicking this will void the token.";
 
@@ -570,9 +570,6 @@ const handleVoidToken = (button, tokenId) => {
         }
 
         try {
-            if (isUsed) {
-                await unenrollUser(tokenId);
-            }
             await voidToken(tokenId, voidNotes);
             updateTokenUI(button, false);
         } catch (error) {
@@ -644,7 +641,7 @@ const updateTokenUI = (button, isUnvoiding) => {
         button.classList.remove("void-token-btn", "btn-danger");
         button.classList.add("unvoid-token-btn", "btn-success");
         button.textContent = "Unvoid Token";
-        button.setAttribute("title", "Clicking this will unvoid the token, making it usable again.");
+        button.setAttribute("title", "Unvoiding removes the void flag. Existing usage history is preserved.");
     }
     window.location.reload();
 };

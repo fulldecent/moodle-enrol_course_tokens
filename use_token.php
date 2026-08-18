@@ -67,10 +67,7 @@ $token = $DB->get_record_sql(
 if (!$token) {
     json_response(['status' => 'error', 'message' => 'Invalid token or token not associated with your account.']);
 }
-if (!empty($token->voided)) {
-    json_response(['status' => 'error', 'message' => 'This token has been voided and cannot be used.']);
-}
-if (!empty($token->user_enrolments_id)) {
+if (!\enrol_course_tokens\local\lifecycle_service::is_available($token)) {
     json_response(['status' => 'error', 'message' => 'This token has already been used.']);
 }
 
@@ -249,9 +246,11 @@ if ($enrolled_record) {
         : 'site support';
 
     try {
-        $lockfactory = \core\lock\lock_config::get_lock_factory('enrol_course_tokens_renewal');
-        $lockresource = 'user:' . (int) $enrol_user->id . ':course:' . (int) $course->id;
-        $lock = $lockfactory->get_lock($lockresource, 5);
+        $locks = \enrol_course_tokens\local\lifecycle_service::acquire_locks(
+            (int) $token->id,
+            (int) $enrol_user->id,
+            (int) $course->id
+        );
     } catch (\Throwable $e) {
         error_log(
             'enrol_course_tokens: could not acquire renewal lock for token '
@@ -261,15 +260,6 @@ if ($enrolled_record) {
             'status' => 'renewal_retry',
             'message' => 'We could not safely start the renewal. Nothing was changed and the token was not used. '
                 . 'Please try again. If the problem continues, contact ' . $supportcontact . ' for assistance.',
-        ]);
-    }
-
-    if (!$lock) {
-        json_response([
-            'status' => 'renewal_retry',
-            'message' => 'Another renewal request is currently processing for this course. '
-                . 'Nothing was changed and the token was not used. Please try again in a few seconds. '
-                . 'If the problem continues, contact ' . $supportcontact . ' for assistance.',
         ]);
     }
 
@@ -287,11 +277,8 @@ if ($enrolled_record) {
         if ((int) $fresh_token->user_id !== (int) $USER->id) {
             throw new \RuntimeException('The token owner changed during renewal.');
         }
-        if (!empty($fresh_token->voided)) {
-            throw new \RuntimeException('The token was voided before renewal could complete.');
-        }
-        if (!empty($fresh_token->user_enrolments_id) || !empty($fresh_token->used_on)) {
-            throw new \RuntimeException('The token has already been used.');
+        if (!\enrol_course_tokens\local\lifecycle_service::is_available($fresh_token)) {
+            throw new \RuntimeException('The token is no longer available.');
         }
 
         $fresh_enrolled_record = $DB->get_record_sql(
@@ -320,9 +307,12 @@ if ($enrolled_record) {
             'caller_manages_transaction' => true,
         ]);
 
-        $fresh_token->user_enrolments_id = (int) $fresh_enrolled_record->id;
-        $fresh_token->used_on = $resettime;
-        $fresh_token->timemodified = time();
+        \enrol_course_tokens\local\lifecycle_service::set_consumed_fields(
+            $fresh_token,
+            (int) $fresh_enrolled_record->id,
+            (int) $enrol_user->id,
+            $resettime
+        );
         $DB->update_record('course_tokens', $fresh_token);
 
         // Postconditions inside the transaction: do not commit unless the exact
@@ -330,10 +320,11 @@ if ($enrolled_record) {
         $usedcheck = $DB->get_record(
             'course_tokens',
             ['id' => $fresh_token->id],
-            'id, user_enrolments_id, used_on',
+            'id, user_enrolments_id, used_by_user_id, used_on',
             MUST_EXIST
         );
         if ((int) $usedcheck->user_enrolments_id !== (int) $fresh_enrolled_record->id
+                || (int) $usedcheck->used_by_user_id !== (int) $enrol_user->id
                 || (int) $usedcheck->used_on !== $resettime) {
             throw new \RuntimeException('Token consumption verification failed.');
         }
@@ -362,7 +353,7 @@ if ($enrolled_record) {
             $transaction = null;
         }
     } finally {
-        $lock->release();
+        \enrol_course_tokens\local\lifecycle_service::release_locks($locks);
     }
 
     if ($renewalerror) {
@@ -383,11 +374,12 @@ if ($enrolled_record) {
                 $statecheck = $DB->get_record(
                     'course_tokens',
                     ['id' => $token->id],
-                    'id, user_enrolments_id, used_on',
+                    'id, user_enrolments_id, used_by_user_id, used_on',
                     MUST_EXIST
                 );
 
                 if ((int) $statecheck->user_enrolments_id === (int) $fresh_enrolled_record->id
+                        && (int) $statecheck->used_by_user_id === (int) $enrol_user->id
                         && (int) $statecheck->used_on === $resettime) {
                     // The commit actually completed despite the connection/error path.
                     $token = $DB->get_record('course_tokens', ['id' => $token->id], '*', MUST_EXIST);
@@ -395,7 +387,9 @@ if ($enrolled_record) {
                     $is_renewal = true;
                     $renewalerror = null;
                     $commitstate = 'committed_after_recheck';
-                } elseif (empty($statecheck->user_enrolments_id) && empty($statecheck->used_on)) {
+                } elseif ($statecheck->user_enrolments_id === null
+                        && $statecheck->used_by_user_id === null
+                        && $statecheck->used_on === null) {
                     $commitstate = 'rolled_back';
                 } else {
                     $commitstate = 'indeterminate';
@@ -469,44 +463,106 @@ if ($enrolled_record) {
 // ENROL USER  (only for brand new enrolments — renewals stay enrolled)
 // ---------------------------------------------------------------------------
 if (!$is_renewal) {
-    $roleId      = $DB->get_record('role', ['shortname' => 'student'])->id;
-    $enrolPlugin = enrol_get_plugin('course_tokens');
-    $enrolPlugin->enrol_user($enrolinstance, $enrol_user->id, $roleId);
-}
+    $locks = [];
+    $transaction = null;
+    $firstenrolerror = null;
+    try {
+        $locks = \enrol_course_tokens\local\lifecycle_service::acquire_locks(
+            (int) $token->id,
+            (int) $enrol_user->id,
+            (int) $course->id
+        );
+        $fresh_token = $DB->get_record('course_tokens', ['id' => $token->id], '*', MUST_EXIST);
+        if ((int) $fresh_token->user_id !== (int) $USER->id
+                || !\enrol_course_tokens\local\lifecycle_service::is_available($fresh_token)) {
+            throw new \RuntimeException('The token is no longer available.');
+        }
+        $nowenrolled = $DB->record_exists_sql(
+            "SELECT 1
+               FROM {user_enrolments} ue
+               JOIN {enrol} e ON e.id = ue.enrolid
+              WHERE ue.userid = :userid AND e.courseid = :courseid",
+            ['userid' => $enrol_user->id, 'courseid' => $course->id]
+        );
+        if ($nowenrolled) {
+            throw new \RuntimeException('The learner became enrolled before token consumption.');
+        }
 
-// Trigger generic enrolment event for optional integrations.
-// Fired for new enrolments only. Renewals stay enrolled and don't need re-adding to groups.
-if (!$is_renewal && class_exists('\enrol_course_tokens\event\user_enrolled_via_token')) {
-    $event = \enrol_course_tokens\event\user_enrolled_via_token::create([
-        'objectid'      => $token->id,
-        'context'       => context_course::instance($course->id),
-        'relateduserid' => $enrol_user->id,
-        'other'         => [
-            'course_id' => $course->id,
-            'token_id'  => $token->id
-        ]
-    ]);
-    $event->trigger();
-}
+        $transaction = $DB->start_delegated_transaction();
+        $role = $DB->get_record('role', ['shortname' => 'student'], 'id', MUST_EXIST);
+        $enrolplugin = enrol_get_plugin('course_tokens');
+        if (!$enrolplugin) {
+            throw new \RuntimeException('Course token enrolment plugin is unavailable.');
+        }
+        $enrolplugin->enrol_user($enrolinstance, (int) $enrol_user->id, (int) $role->id);
+        $userenrolment = $DB->get_record(
+            'user_enrolments',
+            ['userid' => $enrol_user->id, 'enrolid' => $enrolinstance->id],
+            '*',
+            MUST_EXIST
+        );
 
-// ---------------------------------------------------------------------------
-// MARK TOKEN AS USED
-// For renewals the existing user_enrolments row is still there (we didn't
-// unenrol), so this lookup always succeeds in both cases.
-// ---------------------------------------------------------------------------
-$userEnrolment = $DB->get_record('user_enrolments',
-                    ['userid' => $enrol_user->id, 'enrolid' => $enrolinstance->id], '*', IGNORE_MULTIPLE);
+        $usedtime = time();
+        \enrol_course_tokens\local\lifecycle_service::set_consumed_fields(
+            $fresh_token,
+            (int) $userenrolment->id,
+            (int) $enrol_user->id,
+            $usedtime
+        );
+        $DB->update_record('course_tokens', $fresh_token);
 
-// Fallback: If enrolled via another method (e.g., manual), use that existing enrolment ID
-if (!$userEnrolment && $enrolled_record) {
-    $userEnrolment = $enrolled_record;
-}
+        $usedcheck = $DB->get_record(
+            'course_tokens',
+            ['id' => $fresh_token->id],
+            'id, user_enrolments_id, used_by_user_id, used_on',
+            MUST_EXIST
+        );
+        if ((int) $usedcheck->user_enrolments_id !== (int) $userenrolment->id
+                || (int) $usedcheck->used_by_user_id !== (int) $enrol_user->id
+                || (int) $usedcheck->used_on !== $usedtime) {
+            throw new \RuntimeException('Token consumption verification failed.');
+        }
 
-if ($userEnrolment && !$is_renewal) {
-    $token->user_enrolments_id = $userEnrolment->id;
-    $token->used_on            = time();
-    $token->timemodified       = time();
-    $DB->update_record('course_tokens', $token);
+        $transaction->allow_commit();
+        $transaction = null;
+        $token = $fresh_token;
+    } catch (\Throwable $e) {
+        $firstenrolerror = $e;
+        if ($transaction) {
+            try {
+                $transaction->rollback($e);
+            } catch (\Throwable $rollbackexception) {
+                $firstenrolerror = $rollbackexception;
+            }
+        }
+    } finally {
+        \enrol_course_tokens\local\lifecycle_service::release_locks($locks);
+    }
+
+    if ($firstenrolerror) {
+        error_log('enrol_course_tokens: first enrolment failed for token '
+            . (int) $token->id . ': ' . $firstenrolerror->getMessage());
+        json_response([
+            'status' => 'error',
+            'message' => 'We could not safely use this token. Please refresh and try again.',
+        ]);
+    }
+
+    // Integrations run only after enrolment and token consumption commit.
+    try {
+        if (class_exists('\enrol_course_tokens\event\user_enrolled_via_token')) {
+            $event = \enrol_course_tokens\event\user_enrolled_via_token::create([
+                'objectid' => $token->id,
+                'context' => context_course::instance($course->id),
+                'relateduserid' => $enrol_user->id,
+                'other' => ['course_id' => $course->id, 'token_id' => $token->id],
+            ]);
+            $event->trigger();
+        }
+    } catch (\Throwable $e) {
+        error_log('enrol_course_tokens: post-enrolment event failed for token '
+            . (int) $token->id . ': ' . $e->getMessage());
+    }
 }
 
 // ---------------------------------------------------------------------------

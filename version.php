@@ -4,5 +4,5 @@ defined('MOODLE_INTERNAL') || die();
 $plugin->component = 'enrol_course_tokens';
 $plugin->requires  = 2020061500;  // Requires this Moodle version
 $plugin->maturity  = MATURITY_STABLE;
-$plugin->version   = 2026081600;
-$plugin->release   = '2.1.2';
+$plugin->version   = 2026081700;
+$plugin->release   = '2.1.3';

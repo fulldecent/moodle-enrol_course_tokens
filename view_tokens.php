@@ -19,7 +19,7 @@ $use_token_url = new moodle_url('/enrol/course_tokens/use_token.php');
 $sql = "SELECT t.*, u.email as enrolled_user_email, u.id as student_id
         FROM {course_tokens} t
         LEFT JOIN {user_enrolments} ue ON t.user_enrolments_id = ue.id
-        LEFT JOIN {user} u ON ue.userid = u.id
+        LEFT JOIN {user} u ON u.id = COALESCE(t.used_by_user_id, ue.userid)
         WHERE t.user_id = ? AND t.voided_at IS NULL
         ORDER BY t.id DESC";
 
@@ -29,7 +29,7 @@ $sql = "SELECT t.*, u.email as enrolled_user_email, u.id as student_id
         $token_timelines = [];
         if ($tokens) {
             foreach ($tokens as $t) {
-                if (!empty($t->used_on) && !empty($t->student_id)) {
+                if ($t->used_on !== null && !empty($t->student_id)) {
                     $key = $t->student_id . '_' . $t->course_id;
                     $token_timelines[$key][] = $t;
                 }
@@ -37,7 +37,8 @@ $sql = "SELECT t.*, u.email as enrolled_user_email, u.id as student_id
             // Sort each student's course tokens ascending by usage date
             foreach ($token_timelines as $key => $group) {
                 usort($token_timelines[$key], function($a, $b) {
-                    return $a->used_on <=> $b->used_on;
+                    $bytime = (int) $a->used_on <=> (int) $b->used_on;
+                    return $bytime !== 0 ? $bytime : ((int) $a->id <=> (int) $b->id);
                 });
             }
         }
@@ -50,7 +51,7 @@ if (!empty($tokens)) {
     // Check if there is any "Available" token
     $has_available_token = false;
     foreach ($tokens as $token) {
-        if (empty($token->used_on)) {
+        if (\enrol_course_tokens\local\lifecycle_service::is_available($token)) {
             $has_available_token = true;
             break;
         }
@@ -85,17 +86,15 @@ if (!empty($tokens)) {
         $course_name = $course ? $course->fullname : 'Unknown Course';
 
         $user = null;
-        if (!empty($token->user_enrolments_id)) {
-            $enrolment = $DB->get_record('user_enrolments', ['id' => $token->user_enrolments_id], 'userid');
-            if ($enrolment) {
-                $user = $DB->get_record('user', ['id' => $enrolment->userid],
-                'id, email, firstname, lastname, firstnamephonetic, lastnamephonetic, middlename, alternatename, phone1, address');
-            }
+        $learnerid = \enrol_course_tokens\local\lifecycle_service::get_learner_id($token);
+        if ($learnerid !== null) {
+            $user = $DB->get_record('user', ['id' => $learnerid],
+            'id, email, firstname, lastname, firstnamephonetic, lastnamephonetic, middlename, alternatename, phone1, address');
         }
         $user_id = $user ? $user->id : null;
 
-        $is_active_token = true;
-        $window_start = !empty($token->used_on) ? (int)$token->used_on : 0;
+        $is_active_token = \enrol_course_tokens\local\lifecycle_service::is_active_consumed_token($token);
+        $window_start = $token->used_on !== null ? (int)$token->used_on : 0;
         $window_end = null;
 
         if ($user_id) {
@@ -104,7 +103,6 @@ if (!empty($tokens)) {
                 $timeline = $token_timelines[$key];
                 $latest_token = end($timeline);
                 if ($token->id != $latest_token->id) {
-                    $is_active_token = false;
                     foreach ($timeline as $index => $tt) {
                         if ($tt->id == $token->id && isset($timeline[$index + 1])) {
                             $window_end = (int)$timeline[$index + 1]->used_on;
@@ -162,7 +160,7 @@ if (!empty($tokens)) {
 
         // Prepare "Used By" and "Used On" fields for display
         $used_by = $user ? $user->email : '-';
-        $used_on = !empty($token->used_on) ? date('Y-m-d', $token->used_on) : '-';
+        $used_on = $token->used_on !== null ? date('Y-m-d', $token->used_on) : '-';
 
         // Render table row
         echo html_writer::start_tag('tr');
