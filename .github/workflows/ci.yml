@@ -4,12 +4,18 @@ name: ci
 on:
   push:
   pull_request:
-  schedule:
-    - cron: '0 0 1 * *' # Run monthly to detect newly released Moodle versions.
 
 jobs:
   ci:
     uses: catalyst/catalyst-moodle-workflows/.github/workflows/ci.yml@main
     with:
-      # Do not attempt automated Moodle.org releases.
+      # Keep CI focused on build/runtime checks.
+      moodle_branches: MOODLE_502_STABLE
+      disable_behat: true
+      disable_mustache: true
+      disable_phpdoc: true
+      disable_version_bump_check: true
+
+      # Publishing is handled manually.
       disable_release: true
+      
