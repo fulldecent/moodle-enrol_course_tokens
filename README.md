@@ -10,7 +10,7 @@ This plugin is used in a preproduction installation.
 
 Remaining issues before public 1.0.0 release are in [Issue #49](https://github.com/fulldecent/moodle-enrol_course_tokens/issues/49).
 
-Supported Moodle versions: ![CI status](https://github.com/fulldecent/moodle-local_plugin_template/actions/workflows/ci.yml/badge.svg)
+Supported Moodle versions: [![CI status](https://github.com/fulldecent/moodle-enrol_course_tokens/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fulldecent/moodle-enrol_course_tokens/actions/workflows/ci.yml?branch=main)
 
 ## Features
 
