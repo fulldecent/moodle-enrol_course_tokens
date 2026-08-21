@@ -10,7 +10,7 @@ This plugin is used in a preproduction installation.
 
 Remaining issues before public 1.0.0 release are in [Issue #49](https://github.com/fulldecent/moodle-enrol_course_tokens/issues/49).
 
-Supported Moodle versions: ![CI status](https://github.com/fulldecent/moodle-local_plugin_template/actions/workflows/ci.yml/badge.svg)
+Supported Moodle versions: [![CI status](https://github.com/fulldecent/moodle-enrol_course_tokens/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/fulldecent/moodle-enrol_course_tokens/actions/workflows/ci.yml?branch=main)
 
 ## Features
 
@@ -281,8 +281,8 @@ Please send PRs to our [main branch](https://github.com/fulldecent/moodle-enrol_
 3. Setting up playground
    1. If you require a few courses and users to test your plugin, you may want to look at the [generator tool](https://moodledev.io/general/development/tools/generator).
 4. Continuous integration
-   1. This plugin uses [the Moodle CI suite recommended by Catalyst](https://github.com/catalyst/catalyst-moodle-workflows)
-   2. Perhaps we would prefer the CI suite provided by Moodle, but their approach [does not allow you to set it once and forget it](https://github.com/moodlehq/moodle-plugin-ci/issues/323).
-   3. If you face issues with CI during the build, refer to the [Catalyst README](https://github.com/catalyst/catalyst-moodle-workflows/tree/bbb7b5fba5f8304b8b07ad5534b666202d1751c8?tab=readme-ov-file#amd--grunt-bundling-issues) for troubleshooting tips.
+   1. This plugin uses GitHub Actions for continuous integration.
+   2. The workflow is defined in `.github/workflows/ci.yml` and performs a lightweight PHP syntax check on pull requests targeting `main` and on pushes to `main`.
+   3. The CI status badge near the top of this README reflects the status of the `main` branch and links directly to this repository's workflow.
 5. JavaScript modules in Moodle. For best practices on how to use JavaScript modules in Moodle,
   including the use of AMD for asynchronous loading, check the [Moodle JavaScript Modules Documentation](https://moodledev.io/docs/4.5/guides/javascript/modules). We recommend including the amd/build folder in your repo with your build files. This is not DRY, it is "production mode". Examples of other Moodle modules recommending this best practice are [h5p plugin](https://github.com/h5p/moodle-mod_hvp), [attendance plugin](https://github.com/danmarsden/moodle-mod_attendance/tree/MOODLE_404_STABLE/amd).
