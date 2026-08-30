@@ -122,6 +122,22 @@ If you rotate the key, update any external API clients to send the new value in 
 
 The `/enrol/course_tokens/view_tokens.php` page allows logged-in token purchasers to view and manage the tokens associated with their account. It shows each token's code, course, status, assigned learner, usage date, skills schedule date, and available eCard actions. Available tokens can be used to enroll the purchaser or another learner.
 
+### Token display callback
+
+Other Moodle plugins may customise token presentation by implementing this callback in their `lib.php` file:
+
+```php
+function local_example_enrol_course_tokens_extend_token_display(array $context): array {
+    return [
+        'status_code' => 'completed',
+    ];
+}
+```
+
+The callback may return any of these fields: `status_code`, `status_label`, `status_class`, `ecard_html`, and `forward_html`. A `status_code` must be one of `available`, `assigned`, `in_progress`, `completed`, or `failed`.
+
+Providers execute in ascending Moodle component-name order. Each valid, non-empty return value replaces the value produced so far, so the alphabetically later component wins a conflict. All fields, including `ecard_html` and `forward_html`, are replacement-only and are never appended. The merged values are passed in `$context` to the next provider. When no provider is registered, the normal token display remains unchanged.
+
 ### :gear: Site administration page
 
 Enable course tokens as an enrollment method by navigating to `Site administration > Plugins > Enrollment plugins > Course Tokens`.
