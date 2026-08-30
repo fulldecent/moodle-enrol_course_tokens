@@ -439,6 +439,38 @@ function enrol_course_tokens_flatten_token_display_callbacks($callbacks)
 }
 
 /**
+ * Returns token display callbacks in ascending Moodle component-name order.
+ *
+ * @param mixed $callbacks Nested return value from get_plugins_with_function().
+ * @return array Ordered callables.
+ */
+function enrol_course_tokens_order_token_display_callbacks($callbacks): array {
+    $orderedcallbacks = [];
+
+    if (!is_array($callbacks)) {
+        return $orderedcallbacks;
+    }
+
+    foreach ($callbacks as $plugintype => $plugins) {
+        if (!is_string($plugintype) || !is_array($plugins)) {
+            continue;
+        }
+
+        foreach ($plugins as $pluginname => $callback) {
+            if (!is_string($pluginname) || !is_callable($callback)) {
+                continue;
+            }
+
+            $component = "{$plugintype}_{$pluginname}";
+            $orderedcallbacks[$component] = $callback;
+        }
+    }
+
+    ksort($orderedcallbacks, SORT_STRING);
+    return array_values($orderedcallbacks);
+}
+
+/**
  * Runs required synchronous pre-renewal callbacks from other plugins.
  *
  * These callbacks are part of the renewal request itself, unlike Moodle event
@@ -482,10 +514,10 @@ function enrol_course_tokens_run_before_renewal_callbacks(array $context): int
  * Applies optional token display callbacks from other plugins.
  *
  * @param array $context Token display context.
+ * @param array|null $callbacks Optional callback discovery result for testing.
  * @return array Merged display values.
  */
-function enrol_course_tokens_apply_token_display_callbacks(array $context)
-{
+function enrol_course_tokens_apply_token_display_callbacks(array $context, ?array $callbacks = null) {
     $allowedstatuscodes = ['available', 'assigned', 'in_progress', 'completed', 'failed'];
     $display = [
         'status_code' => $context['default_status_code'],
@@ -495,12 +527,11 @@ function enrol_course_tokens_apply_token_display_callbacks(array $context)
         'forward_html' => $context['forward_html'],
     ];
 
-    $callbacks = get_plugins_with_function('enrol_course_tokens_extend_token_display', 'lib.php');
-    foreach (enrol_course_tokens_flatten_token_display_callbacks($callbacks) as $callback) {
-        if (!is_callable($callback)) {
-            continue;
-        }
+    if ($callbacks === null) {
+        $callbacks = get_plugins_with_function('enrol_course_tokens_extend_token_display', 'lib.php');
+    }
 
+    foreach (enrol_course_tokens_order_token_display_callbacks($callbacks) as $callback) {
         $result = $callback($context);
         if (!is_array($result)) {
             continue;
