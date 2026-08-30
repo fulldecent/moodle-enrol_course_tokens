@@ -26,8 +26,8 @@ Supported Moodle versions: [![CI status](https://github.com/fulldecent/moodle-en
 - **Customizable token metadata**
   Store additional information with tokens (e.g., department, reference codes, notes, or group accounts).
 
-- **Self-service dashboard for users**
-  Learners can easily view, manage, and redeem their available tokens through a clean dashboard.
+- **Self-service token management**
+  Learners can view, manage, and redeem their available tokens from their individual token page.
 
 - **Enrollment tracking**
   Token statuses update dynamically—showing whether they are available, assigned, in-progress, completed, or failed.
@@ -38,7 +38,9 @@ Supported Moodle versions: [![CI status](https://github.com/fulldecent/moodle-en
 - **Seamless Moodle integration**
    Enable course tokens as an enrollment method from `Site Administration > Plugins > Enrollment plugins`.
 
-Only administrators have access to this page, where they can manually generate tokens for course enrollment. This allows for customized enrollment management within the system.
+### Administrator token management
+
+The `/enrol/course_tokens/index.php` page is restricted to users with the `moodle/site:config` capability. It allows administrators to create tokens, search existing tokens by token code, order number, purchaser email, or learner email, and perform supported token-management actions such as unenrolling, voiding, and unvoiding.
 
 ### Secure API for automated course token creation
 
@@ -116,23 +118,9 @@ The API request sends the key using the JSON field `secret_key`.
 
 If you rotate the key, update any external API clients to send the new value in the existing `secret_key` JSON field.
 
-### View tokens
+### User token management
 
-The `view_tokens.php` page allows users to view and manage their course enrollment tokens. Users can see detailed information about each token, including its status, associated course, and usage details. For tokens marked as "Available," users can either enroll themselves in the course or enroll someone else using a simple form. The page dynamically updates token statuses, such as "In-progress," "Completed," or "Failed," based on course activity and exam results. This interface ensures a streamlined and user-friendly experience for managing course enrollments.
-
-### Tokens dashboard page
-
-The file dashboard.php displays a user-friendly dashboard summarizing the availability and status of course tokens for the logged-in user. It fetches token data, groups it by course, and categorizes them into statuses such as "Available," "Assigned," "In-progress," "Completed," and "Failed." Users can assign tokens to themselves or others through modals with a simple form, and the status updates dynamically. The page uses AJAX for smooth token assignment and displays detailed course and token information in a structured, Bootstrap-styled table.
-
-### Users can view the "Token dashboard" on their dashboard page
-
-This plugin allows users to add a Moodle block to their page that mirrors the functionality of the `dashboard.php` file. To create the block, simply run the following command after installing the plugin:
-
-```sh
-ln -s /enrol/course_tokens/block /blocks/
-```
-
-This will generate a "Course Tokens" block with the same features and information as the original dashboard page.
+The `/enrol/course_tokens/view_tokens.php` page allows logged-in token purchasers to view and manage the tokens associated with their account. It shows each token's code, course, status, assigned learner, usage date, skills schedule date, and available eCard actions. Available tokens can be used to enroll the purchaser or another learner.
 
 ### :gear: Site administration page
 
@@ -144,7 +132,8 @@ The course tokens plugin can be used in several ways:
 
 - **Direct enrollment via tokens**: Users redeem a token and are immediately enrolled in the associated course.
 - **User account creation**: If a learner doesn’t yet have a Moodle account, they can create one during token redemption.
-- **Dashboard and block access**: Learners can view their available tokens from the Token Dashboard page or by adding the course tokens block to their dashboard.
+- **Administrator token management**: Administrators can create, search, and manage tokens from `/enrol/course_tokens/index.php`.
+- **User token management**: Logged-in token purchasers can view and use their tokens from `/enrol/course_tokens/view_tokens.php`.
 - **API integration**: Training providers can integrate course tokens with their existing sales or CRM systems to issue tokens automatically.
 
 ## Quick start playground
@@ -226,7 +215,9 @@ If you have any further questions about the playground setup, customizing it or 
 
 Install the Course tokens on your quality assurance or production server the same way as on the playground:
 
-1. ```sh
+1. Clone the plugin into Moodle's enrollment plugin directory:
+
+   ```sh
    git clone https://github.com/fulldecent/moodle-enrol_course_tokens.git enrol/course_tokens
    ```
 
@@ -234,7 +225,7 @@ Install the Course tokens on your quality assurance or production server the sam
 
 ## Updating JavaScript
 
-*You only need these instructions if you contribute changes to this Course toknes plugin, specifically the functionality in JavaScript.*
+*You only need these instructions if you contribute changes to this Course tokens plugin, specifically the functionality in JavaScript.*
 
 This project uses asynchronous module definition (AMD) to compile JavaScript. This improves performance of modules and is a best practice for Moodle modules [CITATION NEEDED].
 
@@ -249,7 +240,7 @@ This project uses asynchronous module definition (AMD) to compile JavaScript. Th
 
 2. Install a Node package manager (we recommend [Yarn Berry](https://github.com/yarnpkg/berry)).
 
-   ```shcorepack enable
+   ```sh
    corepack enable
    ```
 
@@ -265,9 +256,7 @@ This project uses asynchronous module definition (AMD) to compile JavaScript. Th
    yarn exec grunt amd
    ```
 
-The end result is that your files in [amd/build](amd/build) will be updated, assuming you have made changes to your files in [amd/source](amd/source).
-
-Do commit these built artifacts in your repository (do not gitignore the amd/build directory). Yes, this is a violation of DRY principle. This is called "production mode" and it is a documented best practice for Moodle modules [CITATION NEEDED].
+The end result is that files in `amd/build` will be generated from source files in [amd/src](amd/src). The generated `amd/build` directory is currently excluded by this repository's `.gitignore`.
 
 ## Contributing
 
@@ -284,5 +273,4 @@ Please send PRs to our [main branch](https://github.com/fulldecent/moodle-enrol_
    1. This plugin uses GitHub Actions for continuous integration.
    2. The workflow is defined in `.github/workflows/ci.yml` and performs a lightweight PHP syntax check on pull requests targeting `main` and on pushes to `main`.
    3. The CI status badge near the top of this README reflects the status of the `main` branch and links directly to this repository's workflow.
-5. JavaScript modules in Moodle. For best practices on how to use JavaScript modules in Moodle,
-  including the use of AMD for asynchronous loading, check the [Moodle JavaScript Modules Documentation](https://moodledev.io/docs/4.5/guides/javascript/modules). We recommend including the amd/build folder in your repo with your build files. This is not DRY, it is "production mode". Examples of other Moodle modules recommending this best practice are [h5p plugin](https://github.com/h5p/moodle-mod_hvp), [attendance plugin](https://github.com/danmarsden/moodle-mod_attendance/tree/MOODLE_404_STABLE/amd).
+5. JavaScript modules in Moodle. For guidance on AMD modules, see the [Moodle JavaScript Modules Documentation](https://moodledev.io/docs/4.5/guides/javascript/modules).
