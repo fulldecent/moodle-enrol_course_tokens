@@ -66,12 +66,19 @@ class block_course_tokens extends block_base
             $this->content->footer = '';
         }
 
-        // Initialize an array to store course data and token counts
+        // Initialize arrays for course data, token counts, and request-local course caching.
         $course_data = [];
+        $coursecache = [];
 
         foreach ($tokens as $token) {
-            $course = $DB->get_record('course', ['id' => $token->course_id], 'id, fullname');
-            $course_name = $course ? $course->fullname : ($token->course_name ?: 'Unknown Course');
+            $courseid = (int) $token->course_id;
+
+            if (!isset($coursecache[$courseid])) {
+                $coursecache[$courseid] = get_course($courseid);
+            }
+
+            $course = $coursecache[$courseid];
+            $course_name = $course->fullname;
 
             if (!isset($course_data[$course_name])) {
                 $course_data[$course_name] = [
