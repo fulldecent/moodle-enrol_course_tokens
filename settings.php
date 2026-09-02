@@ -71,6 +71,38 @@ if ($hassiteconfig) {
             PARAM_URL
         ));
 
+        // Custom Certificate activity tag.
+        $customcerttags = ['' => new lang_string('none', 'enrol_course_tokens')];
+        try {
+            $sql = "SELECT DISTINCT t.id, t.rawname
+                      FROM {tag} t
+                      JOIN {tag_instance} ti ON ti.tagid = t.id
+                      JOIN {course_modules} cm ON cm.id = ti.itemid
+                      JOIN {modules} m ON m.id = cm.module
+                     WHERE ti.component = :component
+                       AND ti.itemtype = :itemtype
+                       AND m.name = :modname
+                  ORDER BY t.rawname";
+            $tags = $DB->get_records_sql($sql, [
+                'component' => 'core',
+                'itemtype' => 'course_modules',
+                'modname' => 'customcert',
+            ]);
+            foreach ($tags as $tag) {
+                $customcerttags[(string)$tag->id] = format_string($tag->rawname) . ' (ID: ' . $tag->id . ')';
+            }
+        } catch (\Exception $e) {
+            // Leave only the disabled option during installation or upgrade.
+        }
+
+        $settings->add(new admin_setting_configselect(
+            'enrol_course_tokens/customcerttagid',
+            new lang_string('customcerttagid', 'enrol_course_tokens'),
+            new lang_string('customcerttagid_desc', 'enrol_course_tokens'),
+            '',
+            $customcerttags
+        ));
+
         // 5. Automated Token Creator User ID.
         $settings->add(new admin_setting_configtext(
             'enrol_course_tokens/tokencreatoruserid',
