@@ -312,6 +312,43 @@ function enrol_course_tokens_get_generic_token_status($token, $userid, $windowst
 }
 
 /**
+ * Returns Custom Certificate instance IDs carrying the configured activity tag.
+ *
+ * @param int $courseid Course ID.
+ * @param int $tagid Tag ID.
+ * @return int[] Custom Certificate instance IDs.
+ */
+function enrol_course_tokens_get_tagged_customcert_ids($courseid, $tagid)
+{
+    $courseid = (int)$courseid;
+    $tagid = (int)$tagid;
+    if ($courseid <= 0 || $tagid <= 0) {
+        return [];
+    }
+
+    $modinfo = get_fast_modinfo($courseid);
+    $customcertcms = $modinfo->get_instances_of('customcert');
+    if (empty($customcertcms)) {
+        return [];
+    }
+
+    $cmsbyid = [];
+    foreach ($customcertcms as $cm) {
+        $cmsbyid[(int)$cm->id] = $cm;
+    }
+
+    $tagsbycmid = \core_tag_tag::get_items_tags('core', 'course_modules', array_keys($cmsbyid));
+    $customcertids = [];
+    foreach ($cmsbyid as $cmid => $cm) {
+        if (isset($tagsbycmid[$cmid][$tagid])) {
+            $customcertids[] = (int)$cm->instance;
+        }
+    }
+
+    return $customcertids;
+}
+
+/**
  * Builds generic customcert eCard and forward buttons when customcert is available.
  *
  * @param int|null $userid Enrolled user ID, if known.
@@ -347,11 +384,26 @@ function enrol_course_tokens_get_generic_customcert_actions($userid, $course, $c
         return $result;
     }
 
-    $params = [
-        'userid' => $userid,
-        'courseid' => $course->id,
-        'certname' => '%' . $DB->sql_like_escape('ecard') . '%',
-    ];
+    $tagid = (int)get_config('enrol_course_tokens', 'customcerttagid');
+    if ($tagid <= 0) {
+        return $result;
+    }
+
+    $customcertids = enrol_course_tokens_get_tagged_customcert_ids((int)$course->id, $tagid);
+    if (empty($customcertids)) {
+        return $result;
+    }
+
+    [$customcertsql, $customcertparams] = $DB->get_in_or_equal(
+        $customcertids,
+        SQL_PARAMS_NAMED,
+        'customcertid'
+    );
+    $params = array_merge([
+        'userid' => (int)$userid,
+        'courseid' => (int)$course->id,
+    ], $customcertparams);
+
     $timeclause = '';
     if ($windowstart > 0) {
         $timeclause .= ' AND ci.timecreated >= :windowstart';
@@ -368,10 +420,9 @@ function enrol_course_tokens_get_generic_customcert_actions($userid, $course, $c
            JOIN {customcert} c ON ci.customcertid = c.id
           WHERE ci.userid = :userid
             AND c.course = :courseid
-            AND " . $DB->sql_like('c.name', ':certname', false) . "
-            $timeclause
-          ORDER BY ci.id DESC
-          LIMIT 1",
+            AND c.id $customcertsql
+                $timeclause
+       ORDER BY ci.timecreated DESC, ci.id DESC",
         $params
     );
 

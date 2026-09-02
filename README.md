@@ -122,6 +122,16 @@ If you rotate the key, update any external API clients to send the new value in 
 
 The `/enrol/course_tokens/view_tokens.php` page allows logged-in token purchasers to view and manage the tokens associated with their account. It shows each token's code, course, status, assigned learner, usage date, skills schedule date, and available eCard actions. Available tokens can be used to enroll the purchaser or another learner.
 
+### Custom Certificate activity association
+
+Generic Custom Certificate eCard actions use Moodle course-module tags instead of certificate display names. To configure the association:
+
+1. Add the same identifying tag to each Custom Certificate activity that may provide the course eCard.
+2. Go to `Site administration > Plugins > Enrollments > Course tokens`.
+3. Select that tag under `Certificate activity tag`.
+
+When several tagged Custom Certificate activities have issued a certificate to the learner, Course Tokens displays the newest issue inside the applicable token-cycle window. If Custom Certificate is unavailable, the setting is disabled, no tagged activity matches, or no matching issue exists, Course Tokens displays `No eCard available`.
+
 ### Token display callback
 
 Other Moodle plugins may customise token presentation by implementing this callback in their `lib.php` file:
