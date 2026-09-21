@@ -12,7 +12,7 @@ export const init = () => {
 define(['jquery'], function($) {
     return {
         init: function() {
-            console.log('AMD module local_enrollment_tokens/activate is loaded and working!');
+            console.log('AMD module enrol_course_tokens/activate is loaded and working!');
             // You can start building your module functionality from here
         }
     };
