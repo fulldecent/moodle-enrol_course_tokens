@@ -21,6 +21,9 @@ if (!confirm_sesskey($sesskey)) {
 try {
     $lock = \enrol_course_tokens\local\lifecycle_service::acquire_token_lock($token_id);
     $token = $DB->get_record('course_tokens', ['id' => $token_id], '*', MUST_EXIST);
+    if (\enrol_course_tokens\local\lifecycle_service::is_dropped_out($token)) {
+        throw new \moodle_exception('dropoutcannotunvoid', 'enrol_course_tokens');
+    }
     $DB->update_record('course_tokens', [
         'id' => $token->id,
         'voided' => 0,

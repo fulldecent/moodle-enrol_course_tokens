@@ -300,3 +300,55 @@ Please send PRs to our [main branch](https://github.com/fulldecent/moodle-enrol_
    2. The workflow is defined in `.github/workflows/ci.yml` and performs a lightweight PHP syntax check on pull requests targeting `main` and on pushes to `main`.
    3. The CI status badge near the top of this README reflects the status of the `main` branch and links directly to this repository's workflow.
 5. JavaScript modules in Moodle. For guidance on AMD modules, see the [Moodle JavaScript Modules Documentation](https://moodledev.io/docs/4.5/guides/javascript/modules).
+
+
+## Dropped-out tokens (issue #488, version 2.2.0)
+
+Administrators can select **Mark as dropped out** on the token management page.
+A separate Moodle confirmation form requires a reason, administrator capability,
+POST and a valid session key. There is no automatic expiry or bulk mutation.
+
+The action voids unused inventory or unenrols the latest valid consumed cycle.
+It preserves the token, purchaser, learner ID, usage date, order metadata and
+customer group account. It stores `dropped_out_at`, `dropped_out_by` and
+`dropped_out_reason`, and emits a Moodle audit event. Unused tokens have no
+learner; the purchaser is not substituted for one.
+
+Older renewal cycles, already voided tokens, detached consumed records and
+inconsistent enrolment links are rejected. Shared links to a removed enrolment
+are cleared without clearing the historical learner/usage fields. The operation
+uses the existing lifecycle locks and a database transaction.
+
+Normal Unenroll, Void and Unvoid remain available for ordinary tokens. Dropped-out
+tokens cannot be refunded, voided again or reopened by Unvoid. A future
+reinstatement workflow would need its own explicit rules; it is not included.
+
+Moodle unenrolment may remove course progress and group membership. This feature
+preserves the student account and token history, not all course activity data.
+Other enrolment methods may independently continue to grant course access.
+
+The administration page shows DROPPED OUT and the date/reason. The generic status
+helper returns `dropped_out`. Report SQL, customer report buckets and the customer
+token/block listings have not been changed; existing void filters still hide
+revoked tokens there. Reports can later use the explicit dropout columns and
+`used_by_user_id`, without depending on a surviving enrolment row.
+
+### Install and test locally
+
+Replace the plugin files in `enrol/course_tokens` and visit Site administration >
+Notifications to apply the additive database upgrade (2026100100). Existing rows
+receive NULL dropout fields and remain unchanged. Back up code and database
+before deployment; do not test the action on live student records.
+
+From a Moodle root with its test database already configured and initialised:
+
+```bash
+vendor/bin/phpunit --testsuite enrol_course_tokens_testsuite
+```
+
+Regression coverage includes active-cycle history, shared enrolments, stale
+latest-token caches, unused inventory, repeat actions and invalid/mismatched
+records. Test the UI locally with: Cancel; blank reason; successful active-token
+dropout; blocked token activation; blocked Unvoid; ordinary Void/Unenroll; and
+an old token followed by a newer renewal. Confirm the audit event and retained
+student/order fields. Non-admin access and a forged/missing sesskey must fail.

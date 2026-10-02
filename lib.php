@@ -206,6 +206,8 @@ class enrol_course_tokens_plugin extends enrol_plugin
 function enrol_course_tokens_get_status_display($statuscode)
 {
     switch ($statuscode) {
+        case 'dropped_out':
+            return ['label' => get_string('droppedout', 'enrol_course_tokens'), 'class' => 'bg-secondary text-white'];
         case 'available':
             return ['label' => 'Available', 'class' => 'bg-secondary'];
         case 'completed':
@@ -232,6 +234,10 @@ function enrol_course_tokens_get_status_display($statuscode)
 function enrol_course_tokens_get_generic_token_status($token, $userid, $windowstart = 0, $windowend = null)
 {
     global $DB;
+
+    if (\enrol_course_tokens\local\lifecycle_service::is_dropped_out($token)) {
+        return 'dropped_out';
+    }
 
     if (\enrol_course_tokens\local\lifecycle_service::is_available($token)) {
         return 'available';

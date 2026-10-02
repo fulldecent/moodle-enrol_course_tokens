@@ -65,6 +65,7 @@ $totalcount = $DB->count_records_sql($countsql, $params);
 // Load from database with JOINs, applying the WHERE clauses and pagination
 $sql = "SELECT t.id, t.timecreated, t.timemodified, t.code, t.course_id,
                t.voided, t.voided_at, t.voided_notes, t.user_enrolments_id,
+               t.dropped_out_at, t.dropped_out_by, t.dropped_out_reason,
                t.extra_json, t.user_id, t.used_by_user_id, t.used_on, t.group_account, t.created_by,
                c.email AS creator_email,
                p.email AS purchaser_email,
@@ -327,7 +328,11 @@ foreach ($tokens as $token) {
             $user_email = !empty($token->used_userid) ? s($token->used_email) : null;
 
             echo '<td>';
-            if ($token->voided) {
+            if (\enrol_course_tokens\local\lifecycle_service::is_dropped_out($token)) {
+                echo html_writer::tag('strong', get_string('droppedout', 'enrol_course_tokens'));
+                echo html_writer::div(s(userdate($token->dropped_out_at)));
+                echo html_writer::div(s($token->dropped_out_reason));
+            } else if ($token->voided) {
                 echo '<button type="button" class="btn btn-success unvoid-token-btn"
                     data-bs-toggle="tooltip"
                     data-bs-placement="top"
@@ -349,6 +354,13 @@ foreach ($tokens as $token) {
                             data-bs-can-unenroll="' . ($can_unenrol ? '1' : '0') . '">
                             Void Token
                         </button>';
+            }
+            if (\enrol_course_tokens\local\lifecycle_service::can_drop_out($token)) {
+                echo ' ' . html_writer::link(
+                    new moodle_url('/enrol/course_tokens/drop_out.php', ['tokenid' => $token_id]),
+                    get_string('markdroppedout', 'enrol_course_tokens'),
+                    ['class' => 'btn btn-secondary']
+                );
             }
             echo '</td>';
         } else {
