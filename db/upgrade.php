@@ -173,5 +173,20 @@ function xmldb_enrol_course_tokens_upgrade($oldversion) {
             upgrade_plugin_savepoint(true, 2026081700, 'enrol', 'course_tokens');
         }
 
+    if ($oldversion < 2026100100) {
+        $table = new xmldb_table('course_tokens');
+        $fields = [
+            new xmldb_field('dropped_out_at', XMLDB_TYPE_INTEGER, '10', null, null, null, null),
+            new xmldb_field('dropped_out_by', XMLDB_TYPE_INTEGER, '10', null, null, null, null),
+            new xmldb_field('dropped_out_reason', XMLDB_TYPE_TEXT, null, null, null, null, null),
+        ];
+        foreach ($fields as $field) {
+            if (!$dbman->field_exists($table, $field)) {
+                $dbman->add_field($table, $field);
+            }
+        }
+        upgrade_plugin_savepoint(true, 2026100100, 'enrol', 'course_tokens');
+    }
+
     return true;
 }

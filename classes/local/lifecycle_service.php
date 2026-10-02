@@ -64,7 +64,8 @@ class lifecycle_service {
      * @return bool
      */
     public static function is_available(\stdClass $token): bool {
-        return property_exists($token, 'used_on') && $token->used_on === null
+        return !self::is_dropped_out($token)
+            && property_exists($token, 'used_on') && $token->used_on === null
             && property_exists($token, 'used_by_user_id') && $token->used_by_user_id === null
             && property_exists($token, 'user_enrolments_id') && $token->user_enrolments_id === null
             && isset($token->voided) && (int) $token->voided === 0
@@ -166,7 +167,7 @@ class lifecycle_service {
         global $DB;
 
         if (
-            !self::is_consumed($token)
+            !self::is_consumed($token) || self::is_dropped_out($token)
                 || !property_exists($token, 'used_by_user_id') || $token->used_by_user_id === null
                 || (int) $token->used_by_user_id <= 0
                 || !property_exists($token, 'user_enrolments_id') || $token->user_enrolments_id === null
@@ -384,7 +385,7 @@ class lifecycle_service {
         global $DB;
 
         $initial = $DB->get_record('course_tokens', ['id' => $tokenid]);
-        if (!$initial) {
+        if (!$initial || self::is_dropped_out($initial)) {
             return false;
         }
         $learnerid = $initial->used_by_user_id === null ? null : (int) $initial->used_by_user_id;
@@ -459,4 +460,132 @@ class lifecycle_service {
             self::release_locks($locks);
         }
     }
+
+    /**
+     * Whether the token has been explicitly closed as a dropout.
+     *
+     * @param \stdClass $token Token record.
+     * @return bool
+     */
+    public static function is_dropped_out(\stdClass $token): bool {
+        return isset($token->dropped_out_at);
+    }
+
+    /**
+     * Only unused inventory or the latest valid enrolled cycle can be dropped out.
+     *
+     * Historical or inconsistent records require review, never guessed unenrolment.
+     *
+     * @param \stdClass $token Token record.
+     * @return bool
+     */
+    public static function can_drop_out(\stdClass $token): bool {
+        return !self::is_dropped_out($token)
+            && (self::is_available($token) || self::get_refundable_enrolment($token) !== null);
+    }
+
+    /**
+     * Revoke a token while preserving its permanent learner and purchase history.
+     *
+     * Callers must authenticate and check the administrator capability and sesskey.
+     * Uses the same lock order as redemption, renewal and refund.
+     *
+     * @param int $tokenid Token ID.
+     * @param string $reason Required administrative reason.
+     * @param int $actorid Acting administrator ID.
+     * @return bool Whether the operation committed successfully.
+     */
+    public static function drop_out(int $tokenid, string $reason, int $actorid): bool {
+        global $DB;
+
+        $reason = trim($reason);
+        if ($reason === '' || $actorid <= 0 || !$DB->record_exists('user', ['id' => $actorid, 'deleted' => 0])) {
+            return false;
+        }
+        $initial = $DB->get_record('course_tokens', ['id' => $tokenid]);
+        if (!$initial) {
+            return false;
+        }
+        $learnerid = $initial->used_by_user_id === null ? null : (int) $initial->used_by_user_id;
+        $locks = [];
+        $transaction = null;
+        try {
+            $locks = $learnerid === null
+                ? [self::acquire_token_lock($tokenid)]
+                : self::acquire_locks($tokenid, $learnerid, (int) $initial->course_id);
+            $token = $DB->get_record('course_tokens', ['id' => $tokenid], '*', MUST_EXIST);
+            if ((int) $token->course_id !== (int) $initial->course_id
+                    || (($token->used_by_user_id === null) !== ($learnerid === null))
+                    || ($learnerid !== null && (int) $token->used_by_user_id !== $learnerid)) {
+                return false;
+            }
+            // Recheck the latest cycle after acquiring locks; page data may be stale.
+            if ($learnerid !== null) {
+                self::clear_latest_consumed_cache($learnerid, (int) $token->course_id);
+            }
+            if (!self::can_drop_out($token)) {
+                return false;
+            }
+            $enrolment = self::get_refundable_enrolment($token);
+            $now = time();
+            $transaction = $DB->start_delegated_transaction();
+            if ($enrolment) {
+                $plugin = enrol_get_plugin($enrolment->enrolplugin);
+                if (!$plugin) {
+                    throw new \RuntimeException('Enrolment plugin is unavailable.');
+                }
+                $instance = $DB->get_record('enrol', ['id' => $enrolment->enrolid], '*', MUST_EXIST);
+                $plugin->unenrol_user($instance, $learnerid);
+                if ($DB->record_exists('user_enrolments', ['id' => $enrolment->id])) {
+                    throw new \RuntimeException('The Moodle enrolment was not removed.');
+                }
+                // Older cycles may share this row. Detach only the now-deleted link.
+                $DB->execute(
+                    "UPDATE {course_tokens}
+                        SET user_enrolments_id = NULL, timemodified = :modified
+                      WHERE user_enrolments_id = :ueid",
+                    ['modified' => $now, 'ueid' => $enrolment->id]
+                );
+            }
+            // A partial update deliberately leaves learner, usage and purchase facts intact.
+            $DB->update_record('course_tokens', (object) [
+                'id' => $tokenid,
+                'user_enrolments_id' => null,
+                'voided' => 1,
+                'voided_at' => $now,
+                'voided_notes' => $reason,
+                'dropped_out_at' => $now,
+                'dropped_out_by' => $actorid,
+                'dropped_out_reason' => $reason,
+                'timemodified' => $now,
+            ]);
+            $event = \enrol_course_tokens\event\token_dropped_out::create([
+                'objectid' => $tokenid,
+                'context' => \context_system::instance(),
+                'userid' => $actorid,
+                'relateduserid' => $learnerid,
+                'other' => ['courseid' => (int) $token->course_id],
+            ]);
+            $event->trigger();
+            $transaction->allow_commit();
+            $transaction = null;
+            return true;
+        } catch (\Throwable $e) {
+            if ($transaction) {
+                try {
+                    $transaction->rollback($e);
+                } catch (\Throwable $rollbackexception) {
+                    // Moodle rollback rethrows the original exception after rollback.
+                }
+            }
+            self::log_error('enrol_course_tokens: dropout failed for token ' . $tokenid . ': ' . $e->getMessage());
+            return false;
+        } finally {
+            if ($learnerid !== null) {
+                self::clear_latest_consumed_cache($learnerid, (int) $initial->course_id);
+            }
+            self::release_locks($locks);
+        }
+    }
+
 }

@@ -146,3 +146,13 @@ $string['enrolment_email_default'] = '
 	<p>Log in at: <a href="{{login_url}}">{{login_url}}</a></p>
 	<p>Thank you.</p>
 </div>';
+// Explicit dropout lifecycle (issue #488).
+$string['droppedout'] = 'DROPPED OUT';
+$string['markdroppedout'] = 'Mark as dropped out';
+$string['dropoutreason'] = 'Reason for dropping out';
+$string['dropoutconfirm'] = 'This will permanently void this token and remove its current course enrolment, if present. Moodle unenrolment can remove course progress and group membership. The student account, token, purchaser, learner association and usage date will be kept. Other enrolment methods may still provide course access. This action cannot be reversed with Unvoid Token.';
+$string['dropoutunusedwarning'] = 'This token has not been activated. No learner is associated with it; the purchaser will remain recorded and will not be assumed to be the learner.';
+$string['dropoutsuccess'] = 'The token has been marked as DROPPED OUT.';
+$string['dropoutfailed'] = 'The token could not be marked as dropped out. It may have changed, been voided, or belong to an older renewal. Refresh the tokens page and review its current state.';
+$string['dropoutcannotunvoid'] = 'Dropped-out tokens cannot be reopened using Unvoid Token.';
+$string['eventtokendroppedout'] = 'Course token marked as dropped out';

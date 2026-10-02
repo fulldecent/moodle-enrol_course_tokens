@@ -283,4 +283,116 @@ final class lifecycle_service_test extends \advanced_testcase {
         $old->voided_at = null;
         $this->assertFalse(lifecycle_service::is_available($old));
     }
+
+    /** Dropping out preserves history while detaching all references to the removed enrolment. */
+    public function test_dropout_preserves_learner_and_shared_cycle_history(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $this->setAdminUser();
+        $course = $this->getDataGenerator()->create_course();
+        $owner = $this->getDataGenerator()->create_user();
+        $learner = $this->getDataGenerator()->create_user();
+        $ue = $this->enrol_user($course, $learner);
+        $old = $this->create_token($course->id, $owner->id, $learner->id, $ue->id, 100);
+        $latest = $this->create_token($course->id, $owner->id, $learner->id, $ue->id, 200);
+        $DB->set_field('course_tokens', 'extra_json', '{"order_number":"488"}', ['id' => $latest->id]);
+        $DB->set_field('course_tokens', 'group_account', 'Customer A', ['id' => $latest->id]);
+        $sink = $this->redirectEvents();
+        $this->assertTrue(lifecycle_service::drop_out($latest->id, '  Deadline exceeded  ', get_admin()->id));
+        $latest = $DB->get_record('course_tokens', ['id' => $latest->id], '*', MUST_EXIST);
+        $old = $DB->get_record('course_tokens', ['id' => $old->id], '*', MUST_EXIST);
+        $this->assertFalse($DB->record_exists('user_enrolments', ['id' => $ue->id]));
+        $this->assertTrue($DB->record_exists('user', ['id' => $learner->id, 'deleted' => 0]));
+        $this->assertNull($latest->user_enrolments_id);
+        $this->assertNull($old->user_enrolments_id);
+        $this->assertSame('100', (string) $old->used_on);
+        $this->assertSame('200', (string) $latest->used_on);
+        $this->assertEquals($learner->id, $latest->used_by_user_id);
+        $this->assertEquals($owner->id, $latest->user_id);
+        $this->assertEquals($owner->id, $latest->created_by);
+        $this->assertSame('{"order_number":"488"}', $latest->extra_json);
+        $this->assertSame('Customer A', $latest->group_account);
+        $this->assertEquals(get_admin()->id, $latest->dropped_out_by);
+        $this->assertSame('Deadline exceeded', $latest->dropped_out_reason);
+        $this->assertEquals(1, $latest->voided);
+        $this->assertNotNull($latest->voided_at);
+        $this->assertTrue(lifecycle_service::is_dropped_out($latest));
+        $this->assertFalse(lifecycle_service::is_available($latest));
+        $this->assertSame('dropped_out', enrol_course_tokens_get_generic_token_status($latest, $learner->id));
+        $events = array_filter($sink->get_events(), static function($event) {
+            return $event instanceof \enrol_course_tokens\event\token_dropped_out;
+        });
+        $this->assertCount(1, $events);
+        $sink->close();
+        $this->assertFalse(lifecycle_service::drop_out($latest->id, 'Repeat', get_admin()->id));
+        $this->assertFalse(lifecycle_service::refund_and_unenrol($latest->id));
+        $this->assertFalse(lifecycle_service::void_token($latest->id, 'Overwrite'));
+        $this->assertSame('Deadline exceeded', $DB->get_field('course_tokens', 'dropped_out_reason', ['id' => $latest->id]));
+    }
+
+    /** An old token cannot remove an enrolment shared with a newer renewal. */
+    public function test_dropout_rejects_historical_cycle_even_after_cached_lookup(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $owner = $this->getDataGenerator()->create_user();
+        $learner = $this->getDataGenerator()->create_user();
+        $ue = $this->enrol_user($course, $learner);
+        $old = $this->create_token($course->id, $owner->id, $learner->id, $ue->id, 100);
+        $this->assertTrue(lifecycle_service::can_drop_out($old));
+        $latest = $this->create_token($course->id, $owner->id, $learner->id, $ue->id, 200);
+        $this->assertFalse(lifecycle_service::drop_out($old->id, 'Expired', get_admin()->id));
+        $this->assertTrue($DB->record_exists('user_enrolments', ['id' => $ue->id]));
+        $this->assertEquals(0, $DB->get_field('course_tokens', 'voided', ['id' => $old->id]));
+        $this->assertEquals($ue->id, $DB->get_field('course_tokens', 'user_enrolments_id', ['id' => $latest->id]));
+    }
+
+    /** Unused inventory is revoked without inventing a learner or usage date. */
+    public function test_dropout_unused_token_preserves_purchaser_only(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $owner = $this->getDataGenerator()->create_user();
+        $token = $this->create_token($course->id, $owner->id, null, null, null);
+        $this->assertTrue(lifecycle_service::drop_out($token->id, 'Activation deadline', get_admin()->id));
+        $token = $DB->get_record('course_tokens', ['id' => $token->id], '*', MUST_EXIST);
+        $this->assertNull($token->used_by_user_id);
+        $this->assertNull($token->used_on);
+        $this->assertEquals($owner->id, $token->user_id);
+        $this->assertFalse(lifecycle_service::is_available($token));
+        // Even inconsistent manual removal of void flags cannot reopen a dropout.
+        $token->voided = 0;
+        $token->voided_at = null;
+        $this->assertFalse(lifecycle_service::is_available($token));
+    }
+
+    /** Invalid input, already voided inventory and detached consumption fail closed. */
+    public function test_dropout_rejects_invalid_or_ambiguous_state(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $owner = $this->getDataGenerator()->create_user();
+        $token = $this->create_token($course->id, $owner->id, null, null, null);
+        $this->assertFalse(lifecycle_service::drop_out($token->id, '   ', get_admin()->id));
+        $this->assertFalse(lifecycle_service::drop_out($token->id, 'Expired', 0));
+        $DB->set_field('course_tokens', 'voided', 1, ['id' => $token->id]);
+        $this->assertFalse(lifecycle_service::drop_out($token->id, 'Expired', get_admin()->id));
+        $detached = $this->create_token($course->id, $owner->id, $owner->id, null, 100);
+        $this->assertFalse(lifecycle_service::drop_out($detached->id, 'Expired', get_admin()->id));
+        $this->assertNull($DB->get_field('course_tokens', 'dropped_out_at', ['id' => $token->id]));
+    }
+
+    /** A mismatched enrolment must never unenrol another learner. */
+    public function test_dropout_rejects_mismatched_enrolment(): void {
+        global $DB;
+        $this->resetAfterTest();
+        $course = $this->getDataGenerator()->create_course();
+        $owner = $this->getDataGenerator()->create_user();
+        $learner = $this->getDataGenerator()->create_user();
+        $ue = $this->enrol_user($course, $learner);
+        $token = $this->create_token($course->id, $owner->id, $owner->id, $ue->id, 100);
+        $this->assertFalse(lifecycle_service::drop_out($token->id, 'Expired', get_admin()->id));
+        $this->assertTrue($DB->record_exists('user_enrolments', ['id' => $ue->id]));
+    }
+
 }
