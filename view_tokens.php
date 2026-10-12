@@ -153,8 +153,6 @@ if (!empty($tokens)) {
         ];
         $display = enrol_course_tokens_apply_token_display_callbacks($display_context);
         $status_code = $display['status_code'];
-        $status = $display['status_label'];
-        $status_class = $display['status_class'];
         $ecard_button = $display['ecard_html'];
         $forward_button = $display['forward_html'];
 
@@ -166,7 +164,7 @@ if (!empty($tokens)) {
         echo html_writer::start_tag('tr');
         echo html_writer::tag('td', format_string($token->code));
         echo html_writer::tag('td', format_string($course_name));
-        echo html_writer::tag('td', format_string($status), array('class' => $status_class));
+        echo enrol_course_tokens_render_token_status($display);
         // Add "Used By" details if the token has been used with phone number and address
         if ($user_id) {
             // Fetch user's phone number and address

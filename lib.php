@@ -568,6 +568,58 @@ function enrol_course_tokens_run_before_renewal_callbacks(array $context): int
 }
 
 /**
+ * Validates optional display overrides before they reach the merged context.
+ *
+ * Labels are unescaped plain text. Classes contain ASCII letters, digits,
+ * underscores or hyphens, with one or more spaces between tokens. Action HTML
+ * is trusted provider output: providers must escape user-controlled text and
+ * attributes and validate URL schemes. This helper does not sanitise HTML.
+ *
+ * @param mixed $result Callback return value (a PHP array, not JSON).
+ * @return array<string, string> Valid supported overrides only.
+ */
+function enrol_course_tokens_validate_token_display_overrides($result): array {
+    if (!is_array($result)) {
+        return [];
+    }
+
+    $allowedstatuscodes = ['available', 'assigned', 'in_progress', 'completed', 'failed'];
+    if (array_key_exists('status_code', $result)
+            && (!is_string($result['status_code']) || !in_array($result['status_code'], $allowedstatuscodes, true))) {
+        // An invalid explicit status also invalidates its associated presentation.
+        unset($result['status_code'], $result['status_label'], $result['status_class']);
+    }
+
+    $validated = [];
+    foreach (['status_code', 'status_label', 'status_class', 'ecard_html', 'forward_html'] as $key) {
+        $value = $result[$key] ?? null;
+        if (!is_string($value) || preg_match('/\A[ \t\r\n\f\x0B]*\z/', $value)) {
+            // Missing, null and ASCII-whitespace-only values never clear an earlier value.
+            // Unlike empty(), this accepts the string "0" without coercing numeric zero.
+            continue;
+        }
+        if ($key === 'status_class' && !preg_match('/\A[A-Za-z0-9_-]+(?: +[A-Za-z0-9_-]+)*\z/', $value)) {
+            continue;
+        }
+        $validated[$key] = $value;
+    }
+
+    return $validated;
+}
+
+/**
+ * Renders the status cell, escaping its plain-text label at the HTML boundary.
+ *
+ * @param array $display Merged display values with an unescaped status_label.
+ * @return string Status table cell HTML.
+ */
+function enrol_course_tokens_render_token_status(array $display): string {
+    // Preserve entity-looking input as literal text too (s() preserves numeric entities).
+    $label = htmlspecialchars($display['status_label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    return html_writer::tag('td', $label, ['class' => $display['status_class']]);
+}
+
+/**
  * Applies optional token display callbacks from other plugins.
  *
  * @param array $context Token display context.
@@ -575,7 +627,6 @@ function enrol_course_tokens_run_before_renewal_callbacks(array $context): int
  * @return array Merged display values.
  */
 function enrol_course_tokens_apply_token_display_callbacks(array $context, ?array $callbacks = null) {
-    $allowedstatuscodes = ['available', 'assigned', 'in_progress', 'completed', 'failed'];
     $display = [
         'status_code' => $context['default_status_code'],
         'status_label' => $context['default_status_label'],
@@ -589,24 +640,17 @@ function enrol_course_tokens_apply_token_display_callbacks(array $context, ?arra
     }
 
     foreach (enrol_course_tokens_order_token_display_callbacks($callbacks) as $callback) {
-        $result = $callback($context);
-        if (!is_array($result)) {
-            continue;
-        }
+        $result = enrol_course_tokens_validate_token_display_overrides($callback($context));
 
         if (array_key_exists('status_code', $result)) {
-            if (empty($result['status_code']) || !in_array($result['status_code'], $allowedstatuscodes, true)) {
-                unset($result['status_code'], $result['status_label'], $result['status_class']);
-            } else {
-                $display['status_code'] = $result['status_code'];
-                $statusdisplay = enrol_course_tokens_get_status_display($display['status_code']);
-                $display['status_label'] = $statusdisplay['label'];
-                $display['status_class'] = $statusdisplay['class'];
-            }
+            $display['status_code'] = $result['status_code'];
+            $statusdisplay = enrol_course_tokens_get_status_display($display['status_code']);
+            $display['status_label'] = $statusdisplay['label'];
+            $display['status_class'] = $statusdisplay['class'];
         }
 
         foreach (['status_label', 'status_class', 'ecard_html', 'forward_html'] as $key) {
-            if (!empty($result[$key])) {
+            if (array_key_exists($key, $result)) {
                 $display[$key] = $result[$key];
             }
         }

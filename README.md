@@ -144,7 +144,38 @@ function local_example_enrol_course_tokens_extend_token_display(array $context):
 }
 ```
 
-The callback may return any of these fields: `status_code`, `status_label`, `status_class`, `ecard_html`, and `forward_html`. A `status_code` must be one of `available`, `assigned`, `in_progress`, `completed`, or `failed`.
+The callback returns a PHP array, not JSON, with any of these optional string fields:
+
+| Field | Contract |
+| --- | --- |
+| `status_code` | Exactly `available`, `assigned`, `in_progress`, `completed`, or `failed`. |
+| `status_label` | Unescaped plain text. The token table escapes it once when rendering; providers must not return HTML or pre-escaped labels. |
+| `status_class` | One or more tokens containing only ASCII letters, digits, underscores or hyphens, separated by one or more literal spaces, e.g. `bg-primary text-white`. Leading/trailing spaces, tabs, newlines and other characters invalidate the entire field; it is not repaired. |
+| `ecard_html`, `forward_html` | Trusted provider-generated HTML fragments, rendered unchanged. Links, attributes and modal triggers remain the provider's responsibility. |
+
+Non-array results and unknown keys are ignored. Fields must be actual strings;
+numbers, booleans, arrays and objects are rejected without coercion. Missing,
+null, empty and ASCII-whitespace-only values leave the preceding value unchanged.
+The string `"0"` is valid label/action content and a valid class token; numeric zero
+is not. Accepted label and HTML strings are not trimmed or rewritten.
+
+A present invalid `status_code` (including null or blank) also suppresses that
+provider's label/class overrides; independent action HTML can still replace prior
+actions. An accepted status code resets the label/class to its canonical defaults
+before applying valid presentation overrides. Other invalid fields preserve the
+preceding values. Internal `dropped_out` defaults remain supported without adding
+that code to the callback allowlist. Extensions still cannot advertise consumed,
+voided or inconsistent tokens as available inventory.
+
+HTML providers **must escape user-controlled text and attributes and validate URL
+schemes** before constructing fragments. String validation does not sanitise
+arbitrary HTML or guarantee safe embedded URLs. No HTML sanitiser or URL-scheme
+filter is applied to these trusted fragments. Structured URL/label fields require
+a separate migration; API/AJAX JSON payloads are unaffected by this callback.
+
+The audited `local_mts_hacks` provider already returns plain status labels and
+compatible multiple CSS classes, so it needs no conversion. Other providers using
+HTML or pre-escaped status labels must change those labels to unescaped plain text.
 
 Providers execute in ascending Moodle component-name order. Each valid, non-empty return value replaces the value produced so far, so the alphabetically later component wins a conflict. All fields, including `ecard_html` and `forward_html`, are replacement-only and are never appended. The merged values are passed in `$context` to the next provider. When no provider is registered, the normal token display remains unchanged.
 
