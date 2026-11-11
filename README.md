@@ -321,7 +321,7 @@ Please send PRs to our [main branch](https://github.com/fulldecent/moodle-enrol_
 
 ## References
 
-1. This module is built based on [best practices documented in moodle-local_plugin_template](https://github.com/fulldecent/moodle-local_plugin_template).
+1. This module is built based on [best practices documented in moodle-local_plugin_template](https://github.com/fulldecent/moodle-local_plugin_template), release v1.0.3.
 2. Setting up Docker
    1. We would prefer an open-source-licensed Docker implementation that runs at native speed on Mac, Linux and Windows. For Mac, you may prefer to [install Colima](https://github.com/abiosoft/colima?tab=readme-ov-file#installation) which is open source but about 5x slower than the OrbStack recommended above.
 3. Setting up playground
